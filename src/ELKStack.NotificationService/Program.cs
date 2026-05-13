@@ -4,11 +4,11 @@ using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
 builder.AddElkStackObservability();
 builder.Services.AddSingleton<NotificationState>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.AddMassTransit(x =>
 {
     x.SetKebabCaseEndpointNameFormatter();
@@ -16,14 +16,23 @@ builder.Services.AddMassTransit(x =>
 
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(
-            builder.Configuration["RabbitMq:Host"] ?? "localhost",
-            builder.Configuration["RabbitMq:VirtualHost"] ?? "/",
-            h =>
-            {
-                h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
-                h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
-            });
+        var connectionString = builder.Configuration.GetConnectionString("messaging");
+
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            cfg.Host(connectionString);
+        }
+        else
+        {
+            cfg.Host(
+                builder.Configuration["RabbitMq:Host"] ?? "localhost",
+                builder.Configuration["RabbitMq:VirtualHost"] ?? "/",
+                h =>
+                {
+                    h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
+                    h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
+                });
+        }
 
         cfg.UseCorrelationFilters(context);
         cfg.ConfigureEndpoints(context);
@@ -32,13 +41,9 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
 app.UseElkStackObservability();
+app.MapDefaultEndpoints();
+
 app.UseAuthorization();
 
 app.MapControllers();

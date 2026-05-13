@@ -4,19 +4,51 @@
   <a href="readme.fa.md"><strong>فارسی</strong></a>
 </p>
 
-> A .NET 8 microservice sample for demonstrating an ELK + APM Server + OpenTelemetry Collector observability stack over a real event-driven flow.
+> A practical .NET 10 microservice demo for explaining observability, distributed tracing, event correlation, and what changes when logs, traces, metrics, and workflow metadata can be investigated together.
 
-`ELKStack` contains three controller-based services that communicate through RabbitMQ using MassTransit 8. Each service can receive HTTP requests, publish integration events, consume events, produce structured logs, and export telemetry through OpenTelemetry.
+This repository is not meant to be a complete business application. It is a focused demo for a technical presentation: one HTTP request enters a microservice system, turns into a chain of RabbitMQ events, and produces logs, traces, metrics, and correlation metadata that can be followed end to end. Local orchestration is handled by .NET Aspire through [`ELKStack.AppHost`](Aspire/ELKStack.AppHost/AppHost.cs).
 
-## Solution Projects
+The code is intentionally small so the operational story stays visible. Instead of treating telemetry as separate outputs, the demo treats it as one investigation surface for answering a single question: what happened to this business operation?
 
-| Project | Responsibility |
+## Why Observability Matters in Microservices
+
+In a monolith, a failed request often stays inside one process and one log stream. In microservices, the same user action crosses process boundaries, queues, background consumers, retries, and asynchronous side effects. A single business operation can involve several services even when the user only made one HTTP call.
+
+Traditional monitoring answers:
+
+```text
+Is the service up?
+Is CPU high?
+Is request latency high?
+```
+
+Observability should answer the harder production questions:
+
+```text
+Which service touched this user request?
+Which event caused the next event?
+Where did the workflow slow down?
+Which log lines, spans, and metrics belong to the same business operation?
+Can we debug it without guessing across dashboards?
+```
+
+This sample is built around those questions, and around the idea that the answer should be reconstructable without manually stitching together several disconnected views.
+
+## Demo System
+
+The solution contains three controller-based services using MassTransit 8 and RabbitMQ:
+
+| Project | Role |
 | --- | --- |
-| [`ELKStack.Contracts`](src/ELKStack.Contracts/IntegrationEvents.cs) | Shared integration events and event metadata contracts. |
-| [`ELKStack.Observability`](src/ELKStack.Observability/ObservabilityExtensions.cs) | Shared structured logging, correlation, MassTransit filters, and OpenTelemetry export setup. |
-| [`ELKStack.BookingService`](src/ELKStack.BookingService/Program.cs) | HTTP booking entry point, booking state, booking lifecycle consumers. |
-| [`ELKStack.PaymentService`](src/ELKStack.PaymentService/Program.cs) | Payment request and payment completion workflow. |
-| [`ELKStack.NotificationService`](src/ELKStack.NotificationService/Program.cs) | Notification request and notification sent workflow. |
+| [`ELKStack.BookingService`](src/ELKStack.BookingService/Program.cs) | Accepts booking requests and tracks booking state. |
+| [`ELKStack.PaymentService`](src/ELKStack.PaymentService/Program.cs) | Reacts to bookings, requests payment, and completes payment. |
+| [`ELKStack.NotificationService`](src/ELKStack.NotificationService/Program.cs) | Reacts to confirmed bookings and sends notifications. |
+| [`ELKStack.Contracts`](src/ELKStack.Contracts/IntegrationEvents.cs) | Defines event contracts and metadata: `EventId`, `CorrelationId`, `CausationId`. |
+| [`ELKStack.ServiceDefaults`](Aspire/ELKStack.ServiceDefaults/Extensions.cs) | Adds Aspire service discovery, HTTP resilience, health endpoints, structured logging, and OpenTelemetry export. |
+| [`ELKStack.Observability`](src/ELKStack.Observability/ObservabilityExtensions.cs) | Adds project-specific correlation propagation for HTTP and MassTransit. |
+| [`ELKStack.AppHost`](Aspire/ELKStack.AppHost/AppHost.cs) | Orchestrates RabbitMQ, Elasticsearch, APM Server, Kibana, the OTel Collector, and all three services with Aspire. |
+
+The service state is intentionally in-memory. The point is not persistence. The point is the observability story.
 
 ## Architecture
 
@@ -52,13 +84,11 @@ flowchart LR
     class Client client
 ```
 
-The API Gateway is shown as an optional edge component for a production-style topology. It is not implemented in this sample code; the three services can be called directly.
+The API Gateway is shown as an optional production-style edge component. It is not implemented in this sample; each service can be called directly.
 
-The services are intentionally small and in-memory. That keeps the presentation focused on distributed tracing, event causality, structured logs, and telemetry export rather than database or persistence concerns.
+## The Business Flow
 
-## Request Entry Point
-
-The normal demo starts with this HTTP request:
+The demo starts with a booking request:
 
 ```http
 POST http://localhost:5101/api/bookings
@@ -74,74 +104,7 @@ X-Correlation-ID: 4b05c640-2a8a-42c9-a732-75a608f7dc09
 }
 ```
 
-The request reaches [`BookingsController.Create`](src/ELKStack.BookingService/Controllers/BookingsController.cs), which creates a `BookingRequested` event and publishes it:
-
-```csharp
-var metadata = correlationContext.CreateMetadata();
-var message = new BookingRequested(
-    Guid.NewGuid(),
-    request.PassengerName,
-    request.CustomerEmail,
-    request.Destination,
-    request.Amount,
-    request.Currency.ToUpperInvariant(),
-    DateTimeOffset.UtcNow,
-    metadata.EventId,
-    metadata.CorrelationId,
-    metadata.CausationId);
-
-await publishEndpoint.Publish(message, cancellationToken);
-```
-
-At this point, an HTTP request has become the root of an event chain.
-
-## Correlation and Causation
-
-The system tracks two different relationships:
-
-| Field | Meaning | Example |
-| --- | --- | --- |
-| `CorrelationId` | The whole workflow ID. Every event caused by one user action shares it. | "Everything that happened because of this booking request." |
-| `CausationId` | The direct parent event ID. This creates the event tree. | "`PaymentCompleted` was caused by `PaymentRequested`." |
-| `EventId` | Unique ID for one event instance. | "`BookingRequested` event #A." |
-
-All integration events implement [`IIntegrationEvent`](src/ELKStack.Contracts/IntegrationEvents.cs):
-
-```csharp
-public interface IIntegrationEvent
-{
-    Guid EventId { get; }
-    DateTimeOffset OccurredAt { get; }
-    Guid CorrelationId { get; }
-    Guid? CausationId { get; }
-}
-```
-
-For HTTP requests, [`CorrelationMiddleware`](src/ELKStack.Observability/Correlation/CorrelationMiddleware.cs):
-
-- reads `X-Correlation-ID` if the client supplied it
-- falls back to `X-Request-ID`
-- generates a new correlation ID when neither exists
-- stores the current operation in `ICorrelationContextAccessor`
-- adds correlation fields to log scopes and OpenTelemetry activity tags
-- returns the correlation values as response headers
-
-For events, [`CorrelationConsumeFilter`](src/ELKStack.Observability/Correlation/CorrelationConsumeFilter.cs) and [`CorrelationPublishFilter`](src/ELKStack.Observability/Correlation/CorrelationPublishFilter.cs) connect MassTransit to the same model.
-
-When a consumer receives an event, the current operation becomes a child operation:
-
-```csharp
-public static CorrelationContext CreateForConsumedEvent(IIntegrationEvent message) =>
-    new(Guid.NewGuid(), message.CorrelationId, message.EventId);
-```
-
-That means every new event published from the consumer gets:
-
-- the same `CorrelationId`
-- a new `EventId`
-- `CausationId` set to the consumed event's `EventId`
-
-## Event Chain
+[`BookingsController.Create`](src/ELKStack.BookingService/Controllers/BookingsController.cs) publishes `BookingRequested`. From there, the workflow continues asynchronously:
 
 ```mermaid
 sequenceDiagram
@@ -167,9 +130,29 @@ sequenceDiagram
     R->>B: NotificationSent
 ```
 
-<br/>
+This is the kind of flow where observability becomes necessary. The original HTTP request does not directly execute all work. It starts a distributed chain whose real behavior only becomes clear when request data, message flow, logs, and traces can be inspected together.
 
-### Event Tree
+## Correlation and Causation
+
+Every event implements [`IIntegrationEvent`](src/ELKStack.Contracts/IntegrationEvents.cs):
+
+```csharp
+public interface IIntegrationEvent
+{
+    Guid EventId { get; }
+    DateTimeOffset OccurredAt { get; }
+    Guid CorrelationId { get; }
+    Guid? CausationId { get; }
+}
+```
+
+| Field | Purpose |
+| --- | --- |
+| `CorrelationId` | Links every log, trace, request, and event in the same business workflow. |
+| `EventId` | Identifies one event instance. |
+| `CausationId` | Points to the parent event that caused the current event. |
+
+The event chain becomes an event tree:
 
 ```mermaid
 flowchart LR
@@ -193,11 +176,15 @@ flowchart LR
     class E,F notify
 ```
 
-Every box in this tree has the same `CorrelationId`. The parent-child relationship is created by `CausationId`.
+All nodes share the same `CorrelationId`. Each child points to its parent through `CausationId`.
 
-<br/>
+Implementation points:
 
-## Observability Flow
+- [`CorrelationMiddleware`](src/ELKStack.Observability/Correlation/CorrelationMiddleware.cs) creates or reads correlation IDs for HTTP requests.
+- [`CorrelationConsumeFilter`](src/ELKStack.Observability/Correlation/CorrelationConsumeFilter.cs) creates a child operation when a MassTransit consumer receives an event.
+- [`CorrelationPublishFilter`](src/ELKStack.Observability/Correlation/CorrelationPublishFilter.cs) pushes event metadata into MassTransit headers.
+
+## Observability Pipeline
 
 ```mermaid
 flowchart LR
@@ -205,14 +192,14 @@ flowchart LR
         Logs[Structured Logs]
         Traces[Distributed Traces]
         Metrics[Runtime / HTTP Metrics]
-        Scopes[Correlation Scopes]
+        Events[Event Metadata]
     end
 
     Logs --> OTLP[OTLP gRPC :4317]
     Traces --> OTLP
     Metrics --> OTLP
-    Scopes --> Logs
-    Scopes --> Traces
+    Events --> Logs
+    Events --> Traces
 
     OTLP --> Collector[OpenTelemetry Collector]
     Collector --> Debug[Debug Exporter]
@@ -223,58 +210,67 @@ flowchart LR
     classDef pipe fill:#ede9fe,stroke:#7c3aed,color:#2e1065
     classDef elk fill:#dcfce7,stroke:#16a34a,color:#052e16
 
-    class Logs,Traces,Metrics,Scopes app
+    class Logs,Traces,Metrics,Events app
     class OTLP,Collector pipe
     class Debug,Elastic,Kibana elk
 ```
 
-The shared setup is in [`ObservabilityExtensions`](src/ELKStack.Observability/ObservabilityExtensions.cs):
+[`ELKStack.ServiceDefaults`](Aspire/ELKStack.ServiceDefaults/Extensions.cs) wires the shared Aspire baseline:
 
-- `AddElkStackObservability()` configures Serilog, OpenTelemetry, correlation services, health checks, and HTTP logging.
-- `UseElkStackObservability()` adds correlation middleware, HTTP logging, Serilog request logging, and health endpoints.
-- `UseCorrelationFilters()` adds MassTransit consume/publish filters for event metadata propagation.
+- Serilog structured logging
+- request logging
+- OpenTelemetry traces and metrics
+- OTLP export
+- MassTransit tracing through the `MassTransit` activity source
+- service discovery and default HTTP resilience
+- health and liveness endpoints
 
-### Structured Logging
+[`ELKStack.Observability`](src/ELKStack.Observability/ObservabilityExtensions.cs) layers in:
 
-The services use Serilog for structured logs and enrich records with service, environment, request, correlation, causation, and operation fields. Relevant code: [`AddStructuredLogging`](src/ELKStack.Observability/ObservabilityExtensions.cs).
+- correlation fields in logs and spans
+- MassTransit consume/publish filters for event metadata propagation
 
-### OpenTelemetry
+Runtime infrastructure is now orchestrated primarily by [`ELKStack.AppHost`](Aspire/ELKStack.AppHost/AppHost.cs). The repository still keeps [`docker-compose.yml`](docker-compose.yml) and [`otel-collector-config.yml`](otel-collector-config.yml) for the previous standalone collector/RabbitMQ path.
 
-The services export:
+## Reading the Workflow in Kibana
 
-- ASP.NET Core traces
-- HTTP client traces
-- MassTransit traces through the `MassTransit` activity source
-- runtime metrics
-- HTTP metrics
-- structured logs through OpenTelemetry logging and Serilog OTLP sink
+Once the flow runs, Kibana becomes more than a dashboard destination. It is where the service-level view and the business-operation view start to line up: incoming requests, downstream spans, logs, and metadata can be inspected in the same investigation path.
 
-Relevant code: [`AddOpenTelemetryExport`](src/ELKStack.Observability/ObservabilityExtensions.cs).
+![Kibana view of the ELKStack demo](docs/example.png)
 
-## Runtime Components
+That matters most during investigation. A correlation ID is useful on its own, but it becomes far more valuable when it can act as a search handle across the telemetry generated by the whole operation.
 
-[`docker-compose.yml`](docker-compose.yml) starts:
+## Why This Operating Model Fits
 
-| Component | Port | Purpose |
-| --- | --- | --- |
-| RabbitMQ | `5672` | MassTransit message transport. |
-| RabbitMQ Management | `15672` | Browser UI for exchanges, queues, and messages. |
-| OpenTelemetry Collector gRPC | `4317` | Receives telemetry from the services. |
-| OpenTelemetry Collector HTTP | `4318` | Optional OTLP HTTP receiver. |
+Grafana, Loki, Tempo, Prometheus, and Jaeger are strong tools. This demo is not a claim that they are weak. It is a demonstration of what becomes simpler when this kind of event-driven workflow is explored through a search-centric, correlation-friendly Elastic path.
 
-The collector configuration is in [`otel-collector-config.yml`](otel-collector-config.yml). It receives OTLP telemetry, batches it, writes to the debug exporter, and forwards to Elastic APM.
+| Investigation need | Why the Elastic path helps here |
+| --- | --- |
+| Follow one business operation across services | `CorrelationId`, `CausationId`, and `EventId` can sit beside traces and logs instead of being treated as external bookkeeping. |
+| Move from symptom to evidence quickly | Elasticsearch makes structured fields and message text natural entry points for investigation. |
+| Keep application telemetry vendor-neutral | The services stay OpenTelemetry-first and export through the Collector/APM path. |
+| Reduce context switching during diagnosis | Logs, traces, APM data, and related infrastructure signals converge in one observability experience. |
+| Preserve a compact demo architecture | The stack communicates a complete investigation workflow without requiring the explanation to jump between several specialized backends. |
 
-```yaml
-exporters:
-  debug:
-    verbosity: basic
-  otlp/elastic:
-    endpoint: ${ELASTIC_APM_ENDPOINT}
-    tls:
-      insecure: true
+The practical incident story is the clearest test:
+
+```text
+User reports "booking confirmation is slow"
+-> search the CorrelationId in Elastic
+-> see the HTTP request, logs, event IDs, and traces together
+-> follow CausationId from BookingRequested to NotificationSent
+-> identify the slow service or failed event without rebuilding the workflow in your head
 ```
 
-## Run Locally
+For this kind of event-driven microservice system, the win is not just telemetry collection. The win is shortening the distance between "something is wrong" and "this operation explains why."
+
+## Run the Demo
+
+Start the Aspire app host:
+
+```powershell
+dotnet run --project Aspire/ELKStack.AppHost/ELKStack.AppHost.csproj
+```
 
 Create a booking:
 
@@ -288,36 +284,12 @@ Invoke-RestMethod http://localhost:5101/api/bookings `
   -Body '{"passengerName":"Sara Ahmadi","customerEmail":"sara@example.com","destination":"Berlin","amount":1490,"currency":"EUR"}'
 ```
 
-## ELK APM vs Grafana Stack
+## Sources
 
-Grafana, Loki, Tempo, Prometheus, and Jaeger are strong tools. The argument for this sample is not that they are weak; it is that the Elastic + APM Server + OpenTelemetry Collector path gives the team a more consolidated operating model for this kind of distributed, event-driven system.
-
-| Decision point | Elastic + APM + OTel Collector | Grafana/Loki/Tempo/Prometheus shape |
-| --- | --- | --- |
-| Cross-signal investigation | Logs, metrics, traces, APM, infrastructure, and related signals are handled in one Elastic Observability experience. | The stack is commonly split by signal: Loki for logs, Tempo/Jaeger for traces, Prometheus/Mimir for metrics, Grafana for visualization. |
-| OpenTelemetry fit | Elastic supports OTLP ingest through OpenTelemetry Collector/APM paths, so this code can stay OTel-first. | Also supports OTel, but teams still operate several specialized backends and data source integrations. |
-| Debugging this workflow | `CorrelationId`, `CausationId`, and `EventId` can be searched and correlated in the same platform as traces and logs. | Correlation usually depends on datasource linking, label conventions, and query discipline across separate systems. |
-| Operational surface | One primary search/analytics backend and one UI path for the demo story. | More moving parts: log backend, trace backend, metrics backend, visualization layer, and meta-monitoring for those systems. |
-| Full-text log search | Elasticsearch is built around indexed search, so searching arbitrary structured log fields and message text is a natural fit. | Grafana itself is a UI, and Loki is label-first: official Loki docs state that it indexes timestamps and labels, not the rest of the log line. Log text can be filtered with LogQL after selecting streams, but it is not Elasticsearch-style full-text indexing. |
-
-The most persuasive point for this project is the incident workflow:
-
-```text
-User reports "booking confirmation is slow"
--> search the CorrelationId in Elastic
--> see the HTTP request, logs, event IDs, and traces together
--> follow CausationId from BookingRequested to NotificationSent
--> identify the slow service or failed event without switching mental models
-```
-
-This is exactly why the sample emphasizes correlation and causation metadata. The technology choice is not just about collecting telemetry; it is about reducing the time between "something is wrong" and "this event in this service caused it."
-
-Sources:
-
-- [Elastic Observability overview](https://www.elastic.co/docs/solutions/observability) describes Elastic as a unified observability platform for logs, metrics, traces, APM, infrastructure, and related operational data.
-- [Elastic OpenTelemetry docs](https://www.elastic.co/docs/solutions/observability/apm/opentelemetry) document native OTLP/OpenTelemetry paths through the Collector, APM Server, and Elastic-managed endpoints.
-- [Grafana Stack overview](https://grafana.com/about/grafana-stack/) presents the Grafana ecosystem as separate products for logs, traces, metrics, and profiles.
-- [Grafana telemetry type guide](https://grafana.com/docs/learning-hub/intro-to-data-sources/00-overview/03-telemetry-types/) explicitly frames Prometheus for metrics and Loki for logs.
-- [Loki query docs](https://grafana.com/docs/loki/latest/logql/) state that Loki indexes timestamps and labels, not the rest of the log line.
-- [Loki meta-monitoring docs](https://grafana.com/docs/loki/latest/operations/meta-monitoring/) show the extra production concern of monitoring the logging stack itself, including metrics cardinality and separate monitoring.
-- [Tempo metrics-from-traces docs](https://grafana.com/docs/tempo/latest/getting-started/metrics-from-traces/) show that trace-derived metrics need Tempo features such as metrics-generator/TraceQL metrics and may write to Prometheus-compatible storage.
+- [Elastic Observability overview](https://www.elastic.co/docs/solutions/observability)
+- [Elastic OpenTelemetry docs](https://www.elastic.co/docs/solutions/observability/apm/opentelemetry)
+- [Grafana Stack overview](https://grafana.com/about/grafana-stack/)
+- [Grafana telemetry type guide](https://grafana.com/docs/learning-hub/intro-to-data-sources/00-overview/03-telemetry-types/)
+- [Loki query docs](https://grafana.com/docs/loki/latest/logql/)
+- [Loki meta-monitoring docs](https://grafana.com/docs/loki/latest/operations/meta-monitoring/)
+- [Tempo metrics-from-traces docs](https://grafana.com/docs/tempo/latest/getting-started/metrics-from-traces/)
