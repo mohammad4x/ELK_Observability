@@ -1,0 +1,17 @@
+@ELKStack.BookingService_HostAddress = http://localhost:5101
+
+POST {{ELKStack.BookingService_HostAddress}}/api/bookings
+Content-Type: application/json
+
+{
+  "passengerName": "Sara Ahmadi",
+  "customerEmail": "sara@example.com",
+  "destination": "Berlin",
+  "amount": 1490,
+  "currency": "EUR"
+}
+
+###
+
+GET {{ELKStack.BookingService_HostAddress}}/api/bookings
+Accept: application/json

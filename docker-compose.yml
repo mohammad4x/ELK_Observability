@@ -1,0 +1,22 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: elkstack-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    container_name: elkstack-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      ELASTIC_APM_ENDPOINT: ${ELASTIC_APM_ENDPOINT:-http://host.docker.internal:8200}
