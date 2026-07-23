@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="ELKStack.Course.Metrics.AppHost/ELKStack.Course.Metrics.AppHost.csproj" />
-  <Project Path="../../Aspire/ELKStack.ServiceDefaults/ELKStack.ServiceDefaults.csproj" />
-  <Project Path="../../src/ELKStack.PaymentService/ELKStack.PaymentService.csproj" />
-  <Project Path="../../src/ELKStack.Observability/ELKStack.Observability.csproj" />
-</Solution>

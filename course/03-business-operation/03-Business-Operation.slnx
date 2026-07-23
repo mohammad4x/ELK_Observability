@@ -1,8 +1,0 @@
-<Solution>
-  <Project Path="ELKStack.Course.Correlation.AppHost/ELKStack.Course.Correlation.AppHost.csproj" />
-  <Project Path="../../src/ELKStack.Contracts/ELKStack.Contracts.csproj" />
-  <Project Path="../../src/ELKStack.Observability/ELKStack.Observability.csproj" />
-  <Project Path="../../src/ELKStack.BookingService/ELKStack.BookingService.csproj" />
-  <Project Path="../../src/ELKStack.PaymentService/ELKStack.PaymentService.csproj" />
-  <Project Path="../../src/ELKStack.NotificationService/ELKStack.NotificationService.csproj" />
-</Solution>
