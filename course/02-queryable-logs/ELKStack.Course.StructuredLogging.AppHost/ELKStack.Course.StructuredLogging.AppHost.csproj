@@ -1,10 +1,9 @@
 <Project Sdk="Aspire.AppHost.Sdk/13.3.1">
-  <PropertyGroup><OutputType>Exe</OutputType><DefineConstants>$(DefineConstants);STAGE_STRUCTURED_LOGGING</DefineConstants></PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup><PackageReference Include="Aspire.Hosting.RabbitMQ" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../src/ELKStack.BookingService/ELKStack.BookingService.csproj" />
     <ProjectReference Include="../../../src/ELKStack.PaymentService/ELKStack.PaymentService.csproj" />
     <ProjectReference Include="../../../src/ELKStack.NotificationService/ELKStack.NotificationService.csproj" />
-    <Compile Include="../../StageAppHost.cs" Link="AppHost.cs" />
   </ItemGroup>
 </Project>

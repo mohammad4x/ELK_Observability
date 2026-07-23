@@ -17,3 +17,27 @@ system, and adds only the capability needed to answer the next question.
 
 Each stage keeps its `.slnx` file beside the lesson guide, so opening a course
 folder reveals both the presentation notes and the runnable solution.
+
+## Code layout
+
+Every stage owns its AppHost source in its own folder. This is the code to show
+when explaining what the stage enables: its RabbitMQ/Elastic infrastructure and
+the `Demo__Stage` profile assigned to each service.
+
+```text
+course/NN-stage/
+  NN-Stage.slnx
+  README.md
+  ELKStack.Course.*.AppHost/
+    AppHost.cs                 # stage-specific composition and profile
+    *.csproj
+
+src/
+  ELKStack.Contracts/          # shared business events and metadata
+  ELKStack.Observability/      # shared logging/correlation/tracing mechanics
+  ELKStack.*Service/           # shared booking/payment/notification workflow
+```
+
+The `src/` projects are intentionally common code. Each course solution adds
+the relevant shared projects alongside its local AppHost, making the stage a
+complete runnable system without copying three services for every lesson.
