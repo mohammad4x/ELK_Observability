@@ -1,5 +1,9 @@
 # Observability by Investigation
 
+<p align="right">
+  <a href="README.fa.md"><strong>فارسی</strong></a>
+</p>
+
 This directory turns the repository into a progressive, code-driven workshop.
 Each stage begins with a production question, runs a deliberately limited
 system, and adds only the capability needed to answer the next question.

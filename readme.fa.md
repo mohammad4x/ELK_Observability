@@ -1,8 +1,27 @@
-<h1 dir="rtl" align="right">ELKStack</h1>
+<h1 dir="rtl" align="right">مشاهده‌پذیری با رویکرد تحقیق</h1>
 
 <p dir="rtl" align="right">
   <a href="README.md"><strong>English</strong></a>
 </p>
+
+<div dir="rtl" align="right">
+
+## مسیر کارگاه
+
+هر درس راهنمای فارسی و solution خودش را در پوشهٔ `course/` دارد:
+
+| مرحله | راهنما | Solution |
+| --- | --- | --- |
+| ۰۰ | [شروع: پایش در برابر تحقیق](course/00-orientation/README.fa.md) | [00-Orientation.slnx](course/00-orientation/00-Orientation.slnx) |
+| ۰۱ | [سامانهٔ مبهم](course/01-opaque-system/README.fa.md) | [01-Opaque-System.slnx](course/01-opaque-system/01-Opaque-System.slnx) |
+| ۰۲ | [لاگ قابل جست‌وجو](course/02-queryable-logs/README.fa.md) | [02-Queryable-Logs.slnx](course/02-queryable-logs/02-Queryable-Logs.slnx) |
+| ۰۳ | [عملیات کسب‌وکاری](course/03-business-operation/README.fa.md) | [03-Business-Operation.slnx](course/03-business-operation/03-Business-Operation.slnx) |
+| ۰۴ | [ساختار اجرا](course/04-execution-structure/README.fa.md) | [04-Execution-Structure.slnx](course/04-execution-structure/04-Execution-Structure.slnx) |
+| ۰۵ | [نشانه‌های سامانه](course/05-system-symptoms/README.fa.md) | [05-System-Symptoms.slnx](course/05-system-symptoms/05-System-Symptoms.slnx) |
+| ۰۶ | [خط لولهٔ telemetry](course/06-telemetry-pipeline/README.fa.md) | [06-Telemetry-Pipeline.slnx](course/06-telemetry-pipeline/06-Telemetry-Pipeline.slnx) |
+| ۰۷ | [تحقیق کامل](course/07-complete-investigation/README.fa.md) | [07-Complete-Investigation.slnx](course/07-complete-investigation/07-Complete-Investigation.slnx) |
+
+</div>
 
 <p dir="rtl" align="right">
 یک نمونه عملی میکروسرویسی با <span dir="ltr">.NET 10</span> برای توضیح مشاهده پذیری، رهگیری توزیع شده، همبستگی رویدادها، و این که وقتی لاگ، تریس، متریک و متادیتای جریان کاری در یک مسیر قابل بررسی باشند چه چیزی تغییر می کند.
@@ -320,7 +339,7 @@ flowchart LR
 وقتی جریان اجرا می شود، Kibana فقط مقصد dashboard نیست. این همان جایی است که نمای سطح سرویس و نمای سطح عملیات کسب و کاری به هم نزدیک می شوند: درخواست ورودی، spanهای پایین دستی، لاگ ها و metadata در یک مسیر تحقیقاتی دیده می شوند.
 </p>
 
-![Kibana view of the ELKStack demo](docs/example.png)
+![Kibana view of the ELKStack demo](assets/example.png)
 
 <p dir="rtl" align="right">
 این موضوع هنگام بررسی incident مهم تر می شود. یک correlation ID به خودی خود مفید است، اما وقتی بتواند به عنوان کلید جستجو روی telemetry کل عملیات عمل کند، ارزش عملی بسیار بیشتری پیدا می کند.

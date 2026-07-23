@@ -1,5 +1,9 @@
 # 01 — Opaque system: something failed. Where?
 
+<p align="right"><a href="README.fa.md"><strong>فارسی</strong></a></p>
+
+> “A user says their booking failed. What happened?”
+
 ## The question
 
 A user reports that their booking failed. The system prints evidence such as:
