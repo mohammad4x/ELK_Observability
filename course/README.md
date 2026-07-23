@@ -15,6 +15,5 @@ system, and adds only the capability needed to answer the next question.
 | 06 — Telemetry pipeline | How did the telemetry reach the backend? | OpenTelemetry pipeline |
 | 07 — Complete investigation | Why did this booking fail? | Signals and business workflow together |
 
-The `solutions/` directory is the presentation navigation. Stages are added
-incrementally so a solution only exposes the concepts being taught at that
-point in the workshop.
+Each stage keeps its `.slnx` file beside the lesson guide, so opening a course
+folder reveals both the presentation notes and the runnable solution.

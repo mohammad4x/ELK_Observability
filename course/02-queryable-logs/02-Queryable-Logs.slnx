@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ELKStack.Course.StructuredLogging.AppHost/ELKStack.Course.StructuredLogging.AppHost.csproj" />
+  <Project Path="../../src/ELKStack.BookingService/ELKStack.BookingService.csproj" />
+  <Project Path="../../src/ELKStack.PaymentService/ELKStack.PaymentService.csproj" />
+  <Project Path="../../src/ELKStack.NotificationService/ELKStack.NotificationService.csproj" />
+</Solution>

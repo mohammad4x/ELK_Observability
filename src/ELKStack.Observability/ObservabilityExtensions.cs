@@ -34,7 +34,7 @@ public static class ObservabilityExtensions
 
     public static WebApplication UseElkStackObservability(this WebApplication app)
     {
-        if (DemoStage.IsOpaque(app.Configuration))
+        if (!DemoStage.UsesCorrelation(app.Configuration))
         {
             return app;
         }

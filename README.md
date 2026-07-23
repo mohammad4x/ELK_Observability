@@ -15,14 +15,14 @@ gain the capability needed to answer it.
 
 | Solution | Story beat |
 | --- | --- |
-| [`00-Orientation.slnx`](solutions/00-Orientation.slnx) | Known monitoring questions vs unknown investigations |
-| [`01-Opaque-System.slnx`](solutions/01-Opaque-System.slnx) | Something failed. Where? |
-| `02-Queryable-Logs.slnx` *(planned)* | Logs we can actually query |
-| `03-Business-Operation.slnx` *(planned)* | Following one operation across services |
-| `04-Execution-Structure.slnx` *(planned)* | Correlation is membership, not structure |
-| `05-System-Symptoms.slnx` *(planned)* | How did we know there was a problem? |
-| `06-Telemetry-Pipeline.slnx` *(planned)* | From application telemetry to Kibana |
-| `07-Complete-Investigation.slnx` *(planned)* | Root cause with technical and business context |
+| [`00-Orientation.slnx`](course/00-orientation/00-Orientation.slnx) | Known monitoring questions vs unknown investigations |
+| [`01-Opaque-System.slnx`](course/01-opaque-system/01-Opaque-System.slnx) | Something failed. Where? |
+| [`02-Queryable-Logs.slnx`](course/02-queryable-logs/02-Queryable-Logs.slnx) | Logs we can actually query |
+| [`03-Business-Operation.slnx`](course/03-business-operation/03-Business-Operation.slnx) | Following one operation across services |
+| [`04-Execution-Structure.slnx`](course/04-execution-structure/04-Execution-Structure.slnx) | Correlation is membership, not structure |
+| [`05-System-Symptoms.slnx`](course/05-system-symptoms/05-System-Symptoms.slnx) | How did we know there was a problem? |
+| [`06-Telemetry-Pipeline.slnx`](course/06-telemetry-pipeline/06-Telemetry-Pipeline.slnx) | From application telemetry to Kibana |
+| [`07-Complete-Investigation.slnx`](course/07-complete-investigation/07-Complete-Investigation.slnx) | Root cause with technical and business context |
 
 See the [course guide](course/README.md) for the progressive narrative. The
 current implementation below is the reference full-system baseline; course

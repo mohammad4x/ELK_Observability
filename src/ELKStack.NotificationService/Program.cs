@@ -34,7 +34,7 @@ builder.Services.AddMassTransit(x =>
                 });
         }
 
-        if (!DemoStage.IsOpaque(builder.Configuration))
+        if (DemoStage.UsesCorrelation(builder.Configuration))
         {
             cfg.UseCorrelationFilters(context);
         }

@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="ELKStack.Course.Pipeline.AppHost/ELKStack.Course.Pipeline.AppHost.csproj" />
+  <Project Path="../../Aspire/ELKStack.AppHost/ELKStack.AppHost.csproj" />
+  <Project Path="../../Aspire/ELKStack.ServiceDefaults/ELKStack.ServiceDefaults.csproj" />
+  <Project Path="../../src/ELKStack.Observability/ELKStack.Observability.csproj" />
+</Solution>

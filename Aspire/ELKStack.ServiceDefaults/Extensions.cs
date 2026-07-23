@@ -34,7 +34,10 @@ public static class Extensions
         else
         {
             builder.ConfigureSerilog();
-            builder.ConfigureOpenTelemetry();
+            if (DemoStage.UsesOpenTelemetry(builder.Configuration))
+            {
+                builder.ConfigureOpenTelemetry();
+            }
         }
         builder.AddDefaultHealthChecks();
 

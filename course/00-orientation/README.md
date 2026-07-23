@@ -31,5 +31,5 @@ questions answerable.
 
 ## Next
 
-Open `01-Opaque-System.slnx`. Run two bookings and observe why plain log
+Open `../01-opaque-system/01-Opaque-System.slnx`. Run two bookings and observe why plain log
 messages are not enough to identify a single failed operation.

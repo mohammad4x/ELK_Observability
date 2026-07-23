@@ -30,7 +30,7 @@ The stage is intentionally incomplete; that is the point of the demo.
 
 ## Run it
 
-1. Open `solutions/01-Opaque-System.slnx` and run the opaque AppHost.
+1. Open `01-Opaque-System.slnx` and run the opaque AppHost.
 2. Copy the Booking Service HTTP endpoint from the Aspire dashboard into
    [`requests.http`](requests.http).
 3. Send the successful and failing requests close together.
