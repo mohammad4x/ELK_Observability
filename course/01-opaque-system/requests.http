@@ -1,0 +1,27 @@
+@bookingService = http://localhost:5101
+
+### A booking that reaches the end of the workflow
+POST {{bookingService}}/api/bookings
+Content-Type: application/json
+
+{
+  "passengerName": "Sara Ahmadi",
+  "customerEmail": "sara@example.com",
+  "destination": "Berlin",
+  "amount": 1490,
+  "currency": "EUR",
+  "scenario": "Normal"
+}
+
+### A booking whose payment is rejected
+POST {{bookingService}}/api/bookings
+Content-Type: application/json
+
+{
+  "passengerName": "Amir Hosseini",
+  "customerEmail": "amir@example.com",
+  "destination": "Lisbon",
+  "amount": 980,
+  "currency": "EUR",
+  "scenario": "PaymentFailure"
+}

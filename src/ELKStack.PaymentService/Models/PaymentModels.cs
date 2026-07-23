@@ -1,5 +1,7 @@
 namespace ELKStack.PaymentService.Models;
 
+using ELKStack.Contracts;
+
 public sealed record CreatePaymentRequest(
     Guid BookingId,
     decimal Amount,
@@ -13,4 +15,5 @@ public sealed record PaymentRecord(
     string Status,
     DateTimeOffset RequestedAt,
     DateTimeOffset? CompletedAt,
-    string? TransactionId);
+    string? TransactionId,
+    string? FailureReason = null);

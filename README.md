@@ -1,10 +1,32 @@
-# ELKStack
+# Observability by Investigation
 
 <p align="right">
   <a href="readme.fa.md"><strong>فارسی</strong></a>
 </p>
 
-> A practical .NET 10 microservice demo for explaining observability, distributed tracing, event correlation, and what changes when logs, traces, metrics, and workflow metadata can be investigated together.
+> A progressive .NET 10 observability workshop in which a distributed booking
+> system becomes understandable one investigative capability at a time.
+
+## Course navigation
+
+The repository is the presentation. Start with the deliberately inadequate
+system, encounter an investigation question, then open the next solution to
+gain the capability needed to answer it.
+
+| Solution | Story beat |
+| --- | --- |
+| [`00-Orientation.slnx`](solutions/00-Orientation.slnx) | Known monitoring questions vs unknown investigations |
+| [`01-Opaque-System.slnx`](solutions/01-Opaque-System.slnx) | Something failed. Where? |
+| `02-Queryable-Logs.slnx` *(planned)* | Logs we can actually query |
+| `03-Business-Operation.slnx` *(planned)* | Following one operation across services |
+| `04-Execution-Structure.slnx` *(planned)* | Correlation is membership, not structure |
+| `05-System-Symptoms.slnx` *(planned)* | How did we know there was a problem? |
+| `06-Telemetry-Pipeline.slnx` *(planned)* | From application telemetry to Kibana |
+| `07-Complete-Investigation.slnx` *(planned)* | Root cause with technical and business context |
+
+See the [course guide](course/README.md) for the progressive narrative. The
+current implementation below is the reference full-system baseline; course
+profiles will be introduced stage by stage on this branch.
 
 This repository is not meant to be a complete business application. It is a focused demo for a technical presentation: one HTTP request enters a microservice system, turns into a chain of RabbitMQ events, and produces logs, traces, metrics, and correlation metadata that can be followed end to end. Local orchestration is handled by .NET Aspire through [`ELKStack.AppHost`](Aspire/ELKStack.AppHost/AppHost.cs).
 

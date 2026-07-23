@@ -1,4 +1,5 @@
 using ELKStack.Observability.Correlation;
+using ELKStack.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http;
@@ -26,8 +27,15 @@ public static class Extensions
     public static TBuilder AddServiceDefaults<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
-        builder.ConfigureSerilog();
-        builder.ConfigureOpenTelemetry();
+        if (DemoStage.IsOpaque(builder.Configuration))
+        {
+            builder.ConfigureOpaqueLogging();
+        }
+        else
+        {
+            builder.ConfigureSerilog();
+            builder.ConfigureOpenTelemetry();
+        }
         builder.AddDefaultHealthChecks();
 
         builder.Services.AddServiceDiscovery();
@@ -36,6 +44,21 @@ public static class Extensions
             http.AddStandardResilienceHandler();
             http.AddServiceDiscovery();
         });
+
+        return builder;
+    }
+
+    private static TBuilder ConfigureOpaqueLogging<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder
+    {
+        builder.Logging.ClearProviders();
+        builder.Logging.AddSimpleConsole(options =>
+        {
+            options.SingleLine = true;
+            options.TimestampFormat = "HH:mm:ss ";
+        });
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
+        builder.Logging.AddFilter("MassTransit", LogLevel.Warning);
 
         return builder;
     }
@@ -137,27 +160,30 @@ public static class Extensions
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
         app.UseHttpLogging();
-        app.UseSerilogRequestLogging(options =>
+        if (!DemoStage.IsOpaque(app.Configuration))
         {
-            options.EnrichDiagnosticContext = EnrichDiagnosticContext;
-            options.GetLevel = (httpContext, _, exception) =>
+            app.UseSerilogRequestLogging(options =>
             {
-                if (exception is not null || httpContext.Response.StatusCode >= 500)
+                options.EnrichDiagnosticContext = EnrichDiagnosticContext;
+                options.GetLevel = (httpContext, _, exception) =>
                 {
-                    return LogEventLevel.Error;
-                }
+                    if (exception is not null || httpContext.Response.StatusCode >= 500)
+                    {
+                        return LogEventLevel.Error;
+                    }
 
-                if (httpContext.Response.StatusCode >= 400)
-                {
-                    return LogEventLevel.Warning;
-                }
+                    if (httpContext.Response.StatusCode >= 400)
+                    {
+                        return LogEventLevel.Warning;
+                    }
 
-                return httpContext.Request.Path.StartsWithSegments(HealthEndpointPath)
-                       || httpContext.Request.Path.StartsWithSegments(AlivenessEndpointPath)
-                    ? LogEventLevel.Verbose
-                    : LogEventLevel.Information;
-            };
-        });
+                    return httpContext.Request.Path.StartsWithSegments(HealthEndpointPath)
+                           || httpContext.Request.Path.StartsWithSegments(AlivenessEndpointPath)
+                        ? LogEventLevel.Verbose
+                        : LogEventLevel.Information;
+                };
+            });
+        }
 
         if (app.Environment.IsDevelopment())
         {

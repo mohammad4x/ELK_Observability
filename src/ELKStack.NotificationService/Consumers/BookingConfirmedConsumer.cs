@@ -1,5 +1,6 @@
 using ELKStack.Contracts;
 using ELKStack.Observability.Correlation;
+using ELKStack.Observability;
 using MassTransit;
 
 namespace ELKStack.NotificationService.Consumers;
@@ -7,6 +8,7 @@ namespace ELKStack.NotificationService.Consumers;
 public sealed class BookingConfirmedConsumer(
     ICorrelationContextAccessor correlationContext,
     IPublishEndpoint publishEndpoint,
+    IConfiguration configuration,
     ILogger<BookingConfirmedConsumer> logger) : IConsumer<BookingConfirmed>
 {
     public async Task Consume(ConsumeContext<BookingConfirmed> context)
@@ -24,6 +26,11 @@ public sealed class BookingConfirmedConsumer(
             metadata.CausationId);
 
         await publishEndpoint.Publish(message, context.CancellationToken);
-        logger.LogInformation("Notification requested for booking {BookingId}", context.Message.BookingId);
+        logger.LogForStage(
+            configuration,
+            LogLevel.Information,
+            "Notification requested",
+            "Notification requested for booking {BookingId}",
+            context.Message.BookingId);
     }
 }

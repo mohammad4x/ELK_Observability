@@ -57,4 +57,25 @@ public sealed class PaymentState
                 TransactionId = transactionId
             });
     }
+
+    public PaymentRecord MarkFailed(PaymentRequested message, string reason)
+    {
+        return _payments.AddOrUpdate(
+            message.PaymentId,
+            _ => new PaymentRecord(
+                message.PaymentId,
+                message.BookingId,
+                message.Amount,
+                message.Currency,
+                "Failed",
+                message.RequestedAt,
+                null,
+                null,
+                reason),
+            (_, existing) => existing with
+            {
+                Status = "Failed",
+                FailureReason = reason
+            });
+    }
 }

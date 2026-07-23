@@ -1,6 +1,7 @@
 using ELKStack.Contracts;
 using ELKStack.NotificationService.State;
 using ELKStack.Observability.Correlation;
+using ELKStack.Observability;
 using MassTransit;
 
 namespace ELKStack.NotificationService.Consumers;
@@ -9,6 +10,7 @@ public sealed class NotificationRequestedConsumer(
     NotificationState state,
     ICorrelationContextAccessor correlationContext,
     IPublishEndpoint publishEndpoint,
+    IConfiguration configuration,
     ILogger<NotificationRequestedConsumer> logger) : IConsumer<NotificationRequested>
 {
     public async Task Consume(ConsumeContext<NotificationRequested> context)
@@ -28,6 +30,12 @@ public sealed class NotificationRequestedConsumer(
         state.MarkSent(message);
         await publishEndpoint.Publish(message, context.CancellationToken);
 
-        logger.LogInformation("Notification {NotificationId} sent to {Recipient}", notification.NotificationId, notification.Recipient);
+        logger.LogForStage(
+            configuration,
+            LogLevel.Information,
+            "Notification sent",
+            "Notification {NotificationId} sent to {Recipient}",
+            notification.NotificationId,
+            notification.Recipient);
     }
 }

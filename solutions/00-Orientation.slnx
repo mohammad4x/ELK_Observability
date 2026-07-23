@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/course/">
+    <Project Path="../course/00-orientation/ELKStack.Course.Orientation/ELKStack.Course.Orientation.csproj" />
+  </Folder>
+</Solution>

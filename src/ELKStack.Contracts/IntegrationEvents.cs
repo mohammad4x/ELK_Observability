@@ -8,6 +8,16 @@ public interface IIntegrationEvent
     Guid? CausationId { get; }
 }
 
+public enum DemoScenario
+{
+    Normal,
+    PaymentFailure,
+    SlowPayment,
+    NotificationFailure,
+    MissingTracePropagation,
+    PaymentRetryThenSuccess
+}
+
 public sealed record IntegrationEventMetadata(
     Guid EventId,
     Guid CorrelationId,
@@ -23,7 +33,8 @@ public sealed record BookingRequested(
     DateTimeOffset RequestedAt,
     Guid EventId,
     Guid CorrelationId,
-    Guid? CausationId) : IIntegrationEvent
+    Guid? CausationId,
+    DemoScenario Scenario = DemoScenario.Normal) : IIntegrationEvent
 {
     public DateTimeOffset OccurredAt => RequestedAt;
 }
@@ -36,7 +47,8 @@ public sealed record PaymentRequested(
     DateTimeOffset RequestedAt,
     Guid EventId,
     Guid CorrelationId,
-    Guid? CausationId) : IIntegrationEvent
+    Guid? CausationId,
+    DemoScenario Scenario = DemoScenario.Normal) : IIntegrationEvent
 {
     public DateTimeOffset OccurredAt => RequestedAt;
 }
@@ -53,6 +65,21 @@ public sealed record PaymentCompleted(
     Guid? CausationId) : IIntegrationEvent
 {
     public DateTimeOffset OccurredAt => CompletedAt;
+}
+
+public sealed record PaymentFailed(
+    Guid PaymentId,
+    Guid BookingId,
+    decimal Amount,
+    string Currency,
+    string Reason,
+    DateTimeOffset FailedAt,
+    Guid EventId,
+    Guid CorrelationId,
+    Guid? CausationId,
+    DemoScenario Scenario = DemoScenario.PaymentFailure) : IIntegrationEvent
+{
+    public DateTimeOffset OccurredAt => FailedAt;
 }
 
 public sealed record BookingConfirmed(

@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/course/">
+    <Project Path="../course/01-opaque-system/ELKStack.Course.Opaque.AppHost/ELKStack.Course.Opaque.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="../src/ELKStack.Contracts/ELKStack.Contracts.csproj" />
+    <Project Path="../src/ELKStack.Observability/ELKStack.Observability.csproj" />
+    <Project Path="../src/ELKStack.BookingService/ELKStack.BookingService.csproj" />
+    <Project Path="../src/ELKStack.PaymentService/ELKStack.PaymentService.csproj" />
+    <Project Path="../src/ELKStack.NotificationService/ELKStack.NotificationService.csproj" />
+  </Folder>
+  <Folder Name="/Aspire/">
+    <Project Path="../Aspire/ELKStack.ServiceDefaults/ELKStack.ServiceDefaults.csproj" />
+  </Folder>
+</Solution>

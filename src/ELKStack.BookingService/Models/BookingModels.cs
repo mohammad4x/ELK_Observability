@@ -1,11 +1,14 @@
 namespace ELKStack.BookingService.Models;
 
+using ELKStack.Contracts;
+
 public sealed record CreateBookingRequest(
     string PassengerName,
     string CustomerEmail,
     string Destination,
     decimal Amount,
-    string Currency = "USD");
+    string Currency = "USD",
+    DemoScenario Scenario = DemoScenario.Normal);
 
 public sealed record BookingRecord(
     Guid BookingId,
@@ -18,4 +21,5 @@ public sealed record BookingRecord(
     DateTimeOffset CreatedAt,
     DateTimeOffset? PaidAt,
     DateTimeOffset? ConfirmedAt,
-    DateTimeOffset? NotificationSentAt);
+    DateTimeOffset? NotificationSentAt,
+    DateTimeOffset? FailedAt = null);

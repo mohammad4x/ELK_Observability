@@ -2,6 +2,7 @@ using ELKStack.BookingService.Models;
 using ELKStack.BookingService.State;
 using ELKStack.Contracts;
 using ELKStack.Observability.Correlation;
+using ELKStack.Observability;
 using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,7 +13,9 @@ namespace ELKStack.BookingService.Controllers;
 public sealed class BookingsController(
     BookingState state,
     ICorrelationContextAccessor correlationContext,
-    IPublishEndpoint publishEndpoint) : ControllerBase
+    IPublishEndpoint publishEndpoint,
+    IConfiguration configuration,
+    ILogger<BookingsController> logger) : ControllerBase
 {
     [HttpGet]
     public ActionResult<IReadOnlyCollection<BookingRecord>> GetAll() =>
@@ -46,10 +49,18 @@ public sealed class BookingsController(
             DateTimeOffset.UtcNow,
             metadata.EventId,
             metadata.CorrelationId,
-            metadata.CausationId);
+            metadata.CausationId,
+            request.Scenario);
 
         var booking = state.Add(message);
         await publishEndpoint.Publish(message, cancellationToken);
+        logger.LogForStage(
+            configuration,
+            LogLevel.Information,
+            "Booking requested",
+            "Booking {BookingId} requested for {Destination}",
+            booking.BookingId,
+            booking.Destination);
 
         return AcceptedAtAction(nameof(GetById), new { bookingId = booking.BookingId }, booking);
     }
