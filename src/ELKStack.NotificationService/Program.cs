@@ -1,4 +1,5 @@
 using ELKStack.NotificationService.State;
+using ELKStack.NotificationService.Features.Notifications;
 using ELKStack.Observability;
 using MassTransit;
 
@@ -7,7 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddElkStackObservability();
 builder.Services.AddSingleton<NotificationState>();
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMassTransit(x =>
 {
@@ -46,6 +46,6 @@ app.MapDefaultEndpoints();
 
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapNotificationsEndpoints();
 
 app.Run();

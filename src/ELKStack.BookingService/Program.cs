@@ -1,4 +1,5 @@
 using ELKStack.BookingService.State;
+using ELKStack.BookingService.Features.Bookings;
 using ELKStack.Observability;
 using MassTransit;
 
@@ -7,7 +8,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddElkStackObservability();
 builder.Services.AddSingleton<BookingState>();
-builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddMassTransit(x =>
 {
@@ -46,6 +46,6 @@ app.MapDefaultEndpoints();
 
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapBookingsEndpoints();
 
 app.Run();
