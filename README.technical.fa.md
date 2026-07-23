@@ -4,49 +4,68 @@
 
 [English](README.technical.md)
 
-این مخزن راهنمایی عملی برای فهم مشاهده‌پذیری در یک سامانهٔ event-driven است. ابتدا دلیل وجود logs، metrics، traces، structured logging، OpenTelemetry و Elastic را توضیح می‌دهد و سپس همهٔ آن‌ها را در یک workflow رزرو نشان می‌دهد.
+این مخزن یک راهنمای عملی برای درک مشاهده‌پذیری در یک سامانهٔ رویدادمحور .NET است. ابتدا توضیح می‌دهد logs، metrics، traces، لاگ ساخت‌یافته، OpenTelemetry و Elastic چرا وجود دارند؛ سپس همهٔ آن‌ها را در یک گردش‌کار رزرو واقعی کنار هم نشان می‌دهد.
 
-[ELKStack.slnx](ELKStack.slnx) را برای سامانهٔ کامل باز کنید و [راهنمای مشاهده‌پذیری](README.fa.md) را برای مفاهیم بخوانید.
+برای بررسی سامانهٔ کامل، [ELKStack.slnx](ELKStack.slnx) را باز کنید. برای مفاهیم پشت این پیاده‌سازی، [راهنمای اصلی مشاهده‌پذیری](README.fa.md) را بخوانید.
 
-## پرسش اصلی
+## پرسشی که این مخزن پاسخ می‌دهد
 
-> «مشتری تلاش کرد رزرو بسازد؛ مشکلی پیش آمد. چه شد؟»
+> «مشتری تلاش کرده است رزرو ایجاد کند، اما مشکلی رخ داده است. چه اتفاقی افتاد؟»
 
-در معماری توزیع‌شده یک درخواست از HTTP، سرویس‌ها، صف‌ها و workerهای پس‌زمینه عبور می‌کند. مشاهده‌پذیری یعنی بتوانیم از نشانهٔ کلی به شواهد یک عملیات برسیم.
+در یک سامانهٔ توزیع‌شده، یک اقدام کاربر می‌تواند از HTTP، چند سرویس، صف، مصرف‌کنندهٔ پس‌زمینه و وابستگی‌های بیرونی عبور کند. یک سامانهٔ مشاهده‌پذیر خوب به مهندس اجازه می‌دهد از یک نشانهٔ کلی به شواهد مربوط به یک عملیات مشخص برسد.
 
-```text
-Metric: خطاها زیاد شده‌اند
-  → Trace: مسیر کند یا ناموفق
-    → Log: تصمیم و علت محلی
-      → Context: workflow رزرو متاثر
+```mermaid
+flowchart LR
+    M[Metric: افزایش خطا] --> T[Trace: مسیر کند یا ناموفق]
+    T --> L[Log: تصمیم و جزئیات خطای محلی]
+    L --> B[Business context: گردش‌کار رزرو آسیب‌دیده]
 ```
 
-## محتوای راهنما
+مشاهده‌پذیری نام یک محصول نیست و فقط «logs + metrics + traces» هم نیست؛ یعنی بتوانیم با شواهد مرتبط و مفید به پرسش‌های محیط عملیاتی پاسخ دهیم.
+
+## آنچه در اینجا پیدا می‌کنید
 
 | موضوع | دلیل اهمیت |
 | --- | --- |
-| [logs، metrics و traces](talk/README.fa.md#۲-logs-metrics-و-traces) | هر سیگنال یک پرسش متفاوت را پاسخ می‌دهد. |
-| [structured logs و Serilog](talk/README.fa.md#۳-structured-logging-و-serilog) | فیلد قابل جست‌وجو از متن قابل‌خواندن قوی‌تر است. |
-| [OpenTelemetry](talk/README.fa.md#۴-opentelemetry) | مرز vendor-neutral برای instrumentation و انتقال telemetry. |
-| [agent و instrumentation کد](talk/README.fa.md#۵-agent-در-برابر-instrumentation-کدنویسیشده) | انتخاب سطح درست کنترل. |
-| [ابزارها و Elastic](talk/README.fa.md#۷-ابزارها) | جای Prometheus، Tempo، Jaeger، Loki و Elastic. |
+| [logs، metrics و traces](README.fa.md#logs-metrics-و-traces) | هر سیگنال به یک پرسش متفاوت در بررسی رخداد پاسخ می‌دهد. |
+| [لاگ ساخت‌یافته و Serilog](README.fa.md#structured-logs-و-serilog) | فیلدهای قابل جست‌وجو از تحلیل جمله‌های متنی قدرتمندترند. |
+| [OpenTelemetry](README.fa.md#opentelemetry) | مرزی مستقل از فروشنده برای instrumentation و انتقال telemetry. |
+| [instrumentation خودکار و کدنویسی‌شده](README.fa.md#instrumentation-خودکار-و-کدنویسیشده) | سطح مناسب کنترل را انتخاب کنید. |
+| [ابزارها](README.fa.md#چشمانداز-ابزارها) | جای Prometheus، Tempo، Jaeger، Elastic، Loki و دیگر ابزارها را ببینید. |
+| [چرا Elastic در این دمو](README.fa.md#چرا-elastic-observability) | یک سطح جست‌وجو و بررسی واحد برای این گردش‌کار. |
 
-## سامانهٔ نمونه
+## نمونهٔ در حال اجرا
 
-```text
-POST /api/bookings
-  → Booking Service → RabbitMQ → Payment Service
-  → RabbitMQ → Booking Service → RabbitMQ → Notification Service
+سه سرویس عمداً وضعیت کسب‌وکار را در حافظه نگه می‌دارند تا تمرکز روی داستان عملیاتی باشد، نه persistence.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant B as Booking Service
+    participant R as RabbitMQ
+    participant P as Payment Service
+    participant N as Notification Service
+
+    C->>B: POST /api/bookings
+    B->>R: BookingRequested
+    R->>P: BookingRequested
+    P->>R: PaymentRequested
+    R->>P: PaymentRequested
+    P->>R: PaymentCompleted یا PaymentFailed
+    R->>B: Payment outcome
+    B->>R: BookingConfirmed
+    R->>N: BookingConfirmed
 ```
 
 | پروژه | مسئولیت |
 | --- | --- |
-| [BookingService](src/ELKStack.BookingService/Program.cs) | دریافت رزرو و نگهداری وضعیت |
-| [PaymentService](src/ELKStack.PaymentService/Program.cs) | پردازش نتیجهٔ پرداخت |
-| [NotificationService](src/ELKStack.NotificationService/Program.cs) | واکنش به رزرو تاییدشده |
-| [Contracts](src/ELKStack.Contracts/IntegrationEvents.cs) | eventها و شناسه‌های کسب‌وکاری |
-| [Observability](src/ELKStack.Observability/ObservabilityExtensions.cs) | correlation و causation برای HTTP و MassTransit |
-| [AppHost](Aspire/ELKStack.AppHost/AppHost.cs) | اجرای RabbitMQ، Collector، Elastic و سرویس‌ها |
+| [BookingService](src/ELKStack.BookingService/Program.cs) | درخواست رزرو را می‌پذیرد و وضعیت آن را پیگیری می‌کند. |
+| [PaymentService](src/ELKStack.PaymentService/Program.cs) | پرداخت را پردازش و نتیجهٔ موفق/ناموفق را منتشر می‌کند. |
+| [NotificationService](src/ELKStack.NotificationService/Program.cs) | به رزرو تأییدشده واکنش نشان می‌دهد. |
+| [Contracts](src/ELKStack.Contracts/IntegrationEvents.cs) | قرارداد رویدادها و شناسه‌های کسب‌وکار. |
+| [Observability](src/ELKStack.Observability/ObservabilityExtensions.cs) | propagation شناسه‌های correlation و causation. |
+| [Service Defaults](Aspire/ELKStack.ServiceDefaults/Extensions.cs) | Serilog، OpenTelemetry، health و پیش‌فرض‌های مشترک میزبان. |
+| [AppHost](Aspire/ELKStack.AppHost/AppHost.cs) | RabbitMQ، Collector، Elastic، Kibana و سرویس‌ها را اجرا می‌کند. |
 
 ## اجرا
 
@@ -54,8 +73,39 @@ POST /api/bookings
 dotnet run --project Aspire/ELKStack.AppHost/ELKStack.AppHost.csproj
 ```
 
-یک درخواست با `scenario` برابر `PaymentFailure` بفرستید؛ سپس از symptom به فیلدهای ساخت‌یافتهٔ log، trace و در نهایت `CorrelationId`/`CausationId` برسید.
+از endpoint سرویس Booking که در داشبورد Aspire نمایش داده می‌شود استفاده کنید. درخواست زیر یک شکست واقعی کسب‌وکاری می‌سازد که قابل بررسی است:
 
-![نمای Kibana](assets/example.png)
+```json
+{
+  "passengerName": "Sara Ahmadi",
+  "customerEmail": "sara@example.com",
+  "destination": "Berlin",
+  "amount": 1490,
+  "currency": "EUR",
+  "scenario": "PaymentFailure"
+}
+```
+
+با نشانهٔ شکست شروع کنید، فیلدهای ساخت‌یافته‌ای مثل `BookingId`، `PaymentId` و `Reason` را بررسی کنید و سپس trace و شناسه‌های کسب‌وکاری را دنبال کنید.
+
+## معماری
+
+```mermaid
+flowchart LR
+    subgraph App[سرویس‌های .NET]
+      B[Booking]
+      P[Payment]
+      N[Notification]
+    end
+    B <--> R[(RabbitMQ)]
+    P <--> R
+    N <--> R
+    App --> O[OpenTelemetry Collector]
+    O --> A[Elastic APM Server]
+    A --> E[Elasticsearch]
+    E --> K[Kibana]
+```
+
+![نمای Kibana از دمو](assets/example.png)
 
 </div>

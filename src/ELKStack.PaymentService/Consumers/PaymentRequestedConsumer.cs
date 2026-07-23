@@ -1,6 +1,5 @@
 using ELKStack.Contracts;
 using ELKStack.Observability.Correlation;
-using ELKStack.Observability;
 using ELKStack.PaymentService.State;
 using MassTransit;
 
@@ -10,7 +9,6 @@ public sealed class PaymentRequestedConsumer(
     PaymentState state,
     ICorrelationContextAccessor correlationContext,
     IPublishEndpoint publishEndpoint,
-    IConfiguration configuration,
     ILogger<PaymentRequestedConsumer> logger) : IConsumer<PaymentRequested>
 {
     public async Task Consume(ConsumeContext<PaymentRequested> context)
@@ -32,10 +30,7 @@ public sealed class PaymentRequestedConsumer(
                 failureMetadata.CausationId);
 
             await publishEndpoint.Publish(failure, context.CancellationToken);
-            logger.LogForStage(
-                configuration,
-                LogLevel.Warning,
-                "Payment failed",
+            logger.LogWarning(
                 "Payment {PaymentId} failed for booking {BookingId}: {Reason}",
                 failedPayment.PaymentId,
                 failedPayment.BookingId,
@@ -59,10 +54,7 @@ public sealed class PaymentRequestedConsumer(
             metadata.CausationId);
 
         await publishEndpoint.Publish(message, context.CancellationToken);
-        logger.LogForStage(
-            configuration,
-            LogLevel.Information,
-            "Payment completed",
+        logger.LogInformation(
             "Payment {PaymentId} completed for booking {BookingId}",
             payment.PaymentId,
             payment.BookingId);

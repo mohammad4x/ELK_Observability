@@ -33,12 +33,12 @@ evidence.
 
 | Topic | Why it matters |
 | --- | --- |
-| [Logs, metrics, and traces](talk/README.md#logs-metrics-and-traces) | Each signal answers a different investigative question. |
-| [Structured logs and Serilog](talk/README.md#structured-logs-and-serilog) | Searchable fields are stronger than parsing sentences. |
-| [OpenTelemetry](talk/README.md#opentelemetry) | A vendor-neutral instrumentation and transport boundary. |
-| [Automatic vs code instrumentation](talk/README.md#automatic-and-code-based-instrumentation) | Choose the right level of control. |
-| [Tool landscape](talk/README.md#tool-landscape) | See where Prometheus, Tempo, Jaeger, Elastic, Loki, and others fit. |
-| [Why Elastic in this demo](talk/README.md#why-elastic-observability) | One search-oriented investigation surface for this workflow. |
+| [Logs, metrics, and traces](README.md#logs-metrics-and-traces) | Each signal answers a different investigative question. |
+| [Structured logs and Serilog](README.md#structured-logs-and-serilog) | Searchable fields are stronger than parsing sentences. |
+| [OpenTelemetry](README.md#opentelemetry) | A vendor-neutral instrumentation and transport boundary. |
+| [Automatic vs code instrumentation](README.md#automatic-and-code-based-instrumentation) | Choose the right level of control. |
+| [Tool landscape](README.md#tool-landscape) | See where Prometheus, Tempo, Jaeger, Elastic, Loki, and others fit. |
+| [Why Elastic in this demo](README.md#why-elastic-observability) | One search-oriented investigation surface for this workflow. |
 
 ## The running example
 
