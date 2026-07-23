@@ -71,6 +71,52 @@ flowchart TD
     D --> E[Search the business workflow]
 ```
 
+### Pull metrics vs push metrics
+
+Prometheus popularized the **pull** model: a Prometheus server discovers
+targets and periodically scrapes each service's `/metrics` endpoint. This is a
+strong model for infrastructure inside one well-connected environment: the
+collector controls scrape frequency, can see whether a target is down, and
+service discovery is a first-class part of the design.
+
+OpenTelemetry commonly uses **push** for application metrics: the SDK batches
+measurements and exports them with OTLP to a Collector, which then routes them
+to the chosen backend.
+
+```mermaid
+flowchart LR
+    subgraph Pull[Pull: Prometheus-style]
+      P[Prometheus] -->|scrapes /metrics| A[Service A]
+      P -->|scrapes /metrics| B[Service B]
+    end
+    subgraph Push[Push: OpenTelemetry-style]
+      C[Service A / SDK] -->|OTLP| O[Collector]
+      D[Service B / SDK] -->|OTLP| O
+      O --> X[Backend]
+    end
+```
+
+For this repository, **push is the preferred application-telemetry model**:
+
+- the same OTLP route carries metrics, traces, and logs, so application teams
+  configure one telemetry egress path;
+- services do not need a publicly reachable scrape endpoint or scraper-specific
+  discovery configuration;
+- the Collector centralizes batching, retries, authentication, filtering, and
+  backend routing—especially useful with containers, short-lived workers, and
+  multiple environments;
+- the application remains backend-neutral: changing the Collector's exporter
+  does not change metric-producing code.
+
+That is a preference for this event-driven application, not a rejection of
+Prometheus. Pull remains excellent for Kubernetes/node/infrastructure metrics
+and teams already invested in Prometheus discovery and PromQL. A hybrid is
+common: scrape infrastructure with Prometheus and push application telemetry
+through OTLP. Prometheus describes its architecture as pull-oriented, while
+the OTel OTLP metrics exporter is explicitly a push exporter. [Prometheus and
+OTLP](https://opentelemetry.io/docs/compatibility/prometheus/otlp-metrics-export/),
+[OTLP metrics exporter](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/otlp/)
+
 ## Structured logs and Serilog
 
 A log record should be more than a rendered sentence. It can contain a time,
@@ -127,6 +173,96 @@ attributes according to semantic conventions, propagate W3C trace context over
 HTTP and messaging, and send signals through OTLP. That makes it much easier
 for services written in different languages to participate in one
 investigation.
+
+### How the .NET OpenTelemetry SDK works
+
+OpenTelemetry in .NET is built on runtime diagnostics APIs; it does not replace
+them with a separate tracing universe.
+
+```mermaid
+sequenceDiagram
+    participant App as ASP.NET Core / application code
+    participant Source as ActivitySource
+    participant SDK as OpenTelemetry SDK listener
+    participant Collector as OTLP Collector
+    participant Backend as Observability backend
+
+    App->>Source: StartActivity("payment.authorize")
+    Source->>SDK: Is a listener interested? Sample this?
+    SDK-->>Source: Yes / No and sampling decision
+    Source-->>App: Activity (or null when not recorded)
+    App->>App: add safe tags, events, status
+    App->>Source: Stop / dispose Activity
+    SDK->>Collector: export selected spans via OTLP
+    Collector->>Backend: process and route telemetry
+```
+
+| .NET type | Responsibility | OpenTelemetry relationship |
+| --- | --- | --- |
+| `Activity` | Represents one in-process operation with start/end time, parent context, IDs, tags, events, links, and status | Conceptually a span |
+| `Activity.Current` | Carries the ambient operation through async calls using `AsyncLocal`-style execution context | Lets child work inherit trace/span context |
+| `ActivitySource` | Named producer used to create `Activity` objects | Application/library tracing source that the SDK subscribes to |
+| `ActivityListener` | Observes activity lifecycle and participates in sampling | The primitive listener mechanism used by tracing infrastructure |
+| `Meter` | Named producer of metric instruments | Metric counterpart to `ActivitySource` |
+| Instruments | `Counter`, `UpDownCounter`, `Histogram`, `ObservableGauge`, and others | Emit measurements with optional dimensions/tags |
+
+The important performance detail is that `ActivitySource.StartActivity` can
+return `null` when no listener is interested. Instrumentation libraries can
+therefore publish diagnostics without forcing every application to allocate
+and export every span. When the OpenTelemetry SDK is configured with
+`.AddSource("name")`, it listens to that named source, applies the configured
+sampler/processors, and exports selected activities.
+
+```csharp
+// Application or library code: publish a meaningful operation.
+private static readonly ActivitySource Source = new("Booking.Payment");
+
+using var activity = Source.StartActivity("payment.authorize");
+activity?.SetTag("payment.provider", "example-provider");
+activity?.SetStatus(ActivityStatusCode.Error, "Provider rejected payment");
+```
+
+This is different from manually creating a `TraceId`. The runtime establishes
+parent/child context from `Activity.Current`; framework instrumentation reads
+and injects W3C `traceparent` headers at supported HTTP and messaging
+boundaries. In this repository, ASP.NET Core and `HttpClient` instrumentation
+provide framework spans, while `MassTransit` publishes activities under its
+own source. [Service Defaults](Aspire/ELKStack.ServiceDefaults/Extensions.cs)
+subscribes to the service source and `MassTransit`:
+
+```csharp
+.WithTracing(tracing => tracing
+    .AddSource(serviceName)
+    .AddSource("MassTransit")
+    .AddAspNetCoreInstrumentation()
+    .AddHttpClientInstrumentation());
+```
+
+Metrics follow the same producer/listener idea but answer aggregate questions.
+A `Meter` owns named instruments. A counter records occurrences, an
+up/down-counter represents a value that can rise and fall, and a histogram
+records a distribution such as request or provider duration. Dimensions are
+useful filters, but unbounded values such as a booking ID must not become metric
+dimensions: that creates high cardinality and makes metrics expensive.
+
+```csharp
+private static readonly Meter Meter = new("Booking.Payment");
+private static readonly Counter<long> Failures =
+    Meter.CreateCounter<long>("payment.failures");
+private static readonly Histogram<double> Duration =
+    Meter.CreateHistogram<double>("payment.provider.duration", unit: "ms");
+
+Failures.Add(1, new KeyValuePair<string, object?>("payment.outcome", "failed"));
+Duration.Record(elapsed.TotalMilliseconds);
+```
+
+The SDK collects these measurements, aggregates them according to its metric
+pipeline, then exports them. That is why a metric can efficiently answer “is
+the failure rate rising?” while a trace or log is still needed to explain one
+failure. Microsoft documents `ActivitySource` as the API for creating
+activities and registering listeners, and `Meter` as the type that creates and
+tracks instruments. [ActivitySource](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activitysource),
+[Meter](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics.meter)
 
 ## Automatic and code-based instrumentation
 
