@@ -1,59 +1,66 @@
 <div dir="rtl">
 
-# مشاهده‌پذیری: یک سامانه، یک تحقیق
+# مشاهده‌پذیری: فهم یک سامانهٔ توزیع‌شده
 
 [English](README.md)
 
-این مخزن همراه یک ارائهٔ ۳۰ دقیقه‌ای و backend-focused دربارهٔ مشاهده‌پذیری است. ابتدا مفاهیم پایه را توضیح می‌دهد و سپس در یک سامانهٔ نهایی .NET، لاگ، metric، trace، OpenTelemetry، RabbitMQ و Elastic را کنار هم نشان می‌دهد.
+این راهنما مفاهیم را با workflow رزرو این مخزن توضیح می‌دهد، اما برای .NET، Java/Spring، Python/Django و دیگر سامانه‌های توزیع‌شده کاربرد دارد.
 
-این مخزن دیگر ساختار دوره‌ای چندمرحله‌ای ندارد. فقط یک solution را باز کنید:
+## logs، metrics و traces
+
+| سیگنال | چه چیزی ثبت می‌کند؟ | پرسش مناسب | محدودیت به‌تنهایی |
+| --- | --- | --- | --- |
+| Log | رخداد، تصمیم یا exception با جزئیات | کد چه گزارش کرد؟ | گراف اجرا نیست |
+| Metric | اندازه‌گیری تجمیعی از رخدادهای زیاد | آیا کل سامانه تغییر کرده؟ | علت یک درخواست را نمی‌گوید |
+| Trace | گراف زمان‌دار یک عملیات | کدام hop کند/ناموفق بود؟ | به symptom یا trace نیاز دارد |
+
+metric برای یافتن تغییر کلی مناسب است، trace مسیر و زمان یک عملیات را برمی‌گرداند، و log جزئیات محلی مانند exception یا پاسخ provider را اضافه می‌کند. `CorrelationId` می‌گوید چه eventهایی یک workflow هستند و `CausationId` علت event بعدی را نشان می‌دهد.
+
+## structured logs و Serilog
+
+```csharp
+logger.LogWarning(
+    "Payment {PaymentId} failed for booking {BookingId}: {Reason}",
+    paymentId, bookingId, reason);
+```
+
+در این مدل شناسه‌ها propertyهای نام‌دار و قابل جست‌وجو هستند. `ILogger<T>` abstraction استاندارد .NET است و `ILoggerFactory` رکوردها را به providerها می‌فرستد. ASP.NET Core این pipeline را با `WebApplication.CreateBuilder` و DI آماده می‌کند. Serilog در این مخزن provider ساخت‌یافته، enrichment، sink، خروجی console و request logging را فراهم می‌کند؛ کد دامنه همچنان به `ILogger<T>` وابسته است.
+
+## OpenTelemetry
+
+OpenTelemetry یک استاندارد و ecosystem شامل API، SDK، instrumentation، semantic convention، Collector و OTLP است؛ database یا dashboard نیست.
 
 ```text
-ELKStack.slnx
+instrumentation → OTel SDK → OTLP → Collector → backend منتخب
 ```
 
-## جریان ارائه
+این مرز باعث می‌شود instrumentation برنامه vendor-neutral باقی بماند. جابه‌جایی backend همچنان dashboard، query، alert و retention را تغییر می‌دهد، اما spanهای دستی برنامه را مجبور به بازنویسی نمی‌کند. در .NET این مدل بر پایهٔ `Activity`، `ActivitySource` و `Meter` است.
 
-| زمان | موضوع | یادداشت گوینده |
-| --- | --- | --- |
-| ۰ تا ۳ دقیقه | مسئلهٔ اصلی | [چرا مشاهده‌پذیری؟](talk/README.fa.md#۱-مسئلهٔ-اصلی) |
-| ۳ تا ۸ | logs، metrics و traces | [شواهد متفاوت](talk/README.fa.md#۲-logs-metrics-و-traces) |
-| ۸ تا ۱۱ | structured logs و Serilog | [لاگ قابل جست‌وجو](talk/README.fa.md#۳-structured-logging-و-serilog) |
-| ۱۱ تا ۱۷ | OpenTelemetry | [vendor-neutral](talk/README.fa.md#۴-opentelemetry) |
-| ۱۷ تا ۲۰ | agent در برابر کد | [مقایسه](talk/README.fa.md#۵-agent-در-برابر-instrumentation-کدنویسیشده) |
-| ۲۰ تا ۲۲ | Java، Python و ASP.NET | [اکوسیستم‌ها](talk/README.fa.md#۶-اکوسیستمها) |
-| ۲۲ تا ۲۴ | ابزارها | [چشم‌انداز ابزار](talk/README.fa.md#۷-ابزارها) |
-| ۲۴ تا ۲۶ | چرا Elastic | [دلیل انتخاب](talk/README.fa.md#۸-چرا-elastic-در-این-دمو) |
-| ۲۶ تا ۳۰ | دمو | [اسکریپت دمو](talk/README.fa.md#۹-دمو) |
+## agent در برابر instrumentation کدنویسی‌شده
 
-## سامانهٔ دمو
+auto-instrumentation برای مرزهای HTTP، database، messaging و runtime با تغییر کم در کد سریع است. بسته به runtime می‌تواند Java agent، monkey patch در Python، startup hook/profiling در .NET یا eBPF باشد. instrumentation داخل کد برای intent کسب‌وکاری—مثلاً زمان provider پرداخت یا شمارش نتیجهٔ دامنه—است.
+
+بهترین روش ترکیب هر دو است: خودکار برای مرزهای فریم‌ورک و کد برای پرسش‌های کسب‌وکاری.
+
+## اکوسیستم‌ها
+
+ASP.NET Core از `ActivitySource`/`Meter`، Java/Spring از Java agent و OTel Java API، و Python/Django از `opentelemetry-instrument` و OTel Python API استفاده می‌کنند. context propagation، resource attribute، semantic convention و OTLP مفاهیم مشترک‌اند.
+
+## ابزارها و Elastic
+
+برای metrics ابزارهای شناخته‌شده Prometheus، Grafana Mimir و VictoriaMetrics هستند؛ برای logs، Elastic، Loki و OpenSearch؛ و برای traces، Jaeger، Tempo، Zipkin و Elastic APM.
+
+Elastic در این دمو انتخاب شده چون logs، metrics، traces و شناسه‌های workflow را در یک سطح تحقیقاتی جست‌وجوپذیر کنار هم قرار می‌دهد؛ در عین حال application contract، OTLP/OpenTelemetry باقی می‌ماند. هزینه، licensing و queryهای اختصاصی backend همچنان trade-off واقعی‌اند.
+
+## خواندن workflow
 
 ```text
-POST /api/bookings
-  → Booking Service → RabbitMQ → Payment Service
-  → RabbitMQ → Booking Service → RabbitMQ → Notification Service
+TraceId       گراف و زمان اجرای فنی
+CorrelationId عضویت در workflow کسب‌وکاری
+EventId       هویت یک event/message
+CausationId   event قبلی که علت event فعلی است
 ```
 
-| پروژه | نقش |
-| --- | --- |
-| [BookingService](src/ELKStack.BookingService/Program.cs) | دریافت رزرو و نگهداری وضعیت آن |
-| [PaymentService](src/ELKStack.PaymentService/Program.cs) | درخواست، تکمیل یا شکست پرداخت |
-| [NotificationService](src/ELKStack.NotificationService/Program.cs) | ارسال اعلان |
-| [Contracts](src/ELKStack.Contracts/IntegrationEvents.cs) | رویدادها و EventId/CorrelationId/CausationId |
-| [Observability](src/ELKStack.Observability/ObservabilityExtensions.cs) | correlation برای HTTP و MassTransit |
-| [Service Defaults](Aspire/ELKStack.ServiceDefaults/Extensions.cs) | Serilog، OpenTelemetry و health check |
-| [AppHost](Aspire/ELKStack.AppHost/AppHost.cs) | RabbitMQ، Elastic، Kibana، Collector و سرویس‌ها |
-
-## اجرای دمو
-
-```powershell
-dotnet run --project Aspire/ELKStack.AppHost/ELKStack.AppHost.csproj
-```
-
-یک booking با `scenario` برابر `PaymentFailure` ارسال کنید و از symptom به structured log، سپس trace و در نهایت CorrelationId/CausationId برسید.
-
-![نمای Kibana](assets/example.png)
-
-**نتیجهٔ اصلی:** metric نشانه را می‌یابد، trace مسیر را نشان می‌دهد، log تصمیم محلی را توضیح می‌دهد، و context کسب‌وکاری همه را به یک workflow وصل می‌کند.
+این تفکیک برای retry، پیام زمان‌بندی‌شده، delayed work و فرآیندهای طولانی مهم است؛ یک workflow می‌تواند از یک trace بیشتر عمر کند.
 
 </div>
