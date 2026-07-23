@@ -29,6 +29,9 @@ public sealed class PaymentCompletedConsumer(
             metadata.CausationId);
 
         await publishEndpoint.Publish(message, context.CancellationToken);
-        logger.LogInformation("Booking {BookingId} confirmed after payment {PaymentId}", booking.BookingId, context.Message.PaymentId);
+        logger.LogInformation(
+            "Booking {BookingId} confirmed after payment {PaymentId}",
+            booking.BookingId,
+            context.Message.PaymentId);
     }
 }

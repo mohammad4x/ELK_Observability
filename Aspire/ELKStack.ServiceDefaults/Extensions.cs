@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ServiceDiscovery;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -79,12 +77,6 @@ public static class Extensions
         where TBuilder : IHostApplicationBuilder
     {
         var serviceName = GetServiceName(builder);
-
-        builder.Logging.AddOpenTelemetry(logging =>
-        {
-            logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes = true;
-        });
 
         var openTelemetry = builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName))

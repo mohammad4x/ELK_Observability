@@ -12,7 +12,8 @@ namespace ELKStack.BookingService.Controllers;
 public sealed class BookingsController(
     BookingState state,
     ICorrelationContextAccessor correlationContext,
-    IPublishEndpoint publishEndpoint) : ControllerBase
+    IPublishEndpoint publishEndpoint,
+    ILogger<BookingsController> logger) : ControllerBase
 {
     [HttpGet]
     public ActionResult<IReadOnlyCollection<BookingRecord>> GetAll() =>
@@ -46,10 +47,15 @@ public sealed class BookingsController(
             DateTimeOffset.UtcNow,
             metadata.EventId,
             metadata.CorrelationId,
-            metadata.CausationId);
+            metadata.CausationId,
+            request.Scenario);
 
         var booking = state.Add(message);
         await publishEndpoint.Publish(message, cancellationToken);
+        logger.LogInformation(
+            "Booking {BookingId} requested for {Destination}",
+            booking.BookingId,
+            booking.Destination);
 
         return AcceptedAtAction(nameof(GetById), new { bookingId = booking.BookingId }, booking);
     }

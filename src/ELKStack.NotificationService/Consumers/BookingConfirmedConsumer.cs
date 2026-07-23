@@ -24,6 +24,8 @@ public sealed class BookingConfirmedConsumer(
             metadata.CausationId);
 
         await publishEndpoint.Publish(message, context.CancellationToken);
-        logger.LogInformation("Notification requested for booking {BookingId}", context.Message.BookingId);
+        logger.LogInformation(
+            "Notification requested for booking {BookingId}",
+            context.Message.BookingId);
     }
 }

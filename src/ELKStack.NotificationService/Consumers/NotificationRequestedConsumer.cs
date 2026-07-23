@@ -28,6 +28,9 @@ public sealed class NotificationRequestedConsumer(
         state.MarkSent(message);
         await publishEndpoint.Publish(message, context.CancellationToken);
 
-        logger.LogInformation("Notification {NotificationId} sent to {Recipient}", notification.NotificationId, notification.Recipient);
+        logger.LogInformation(
+            "Notification {NotificationId} sent to {Recipient}",
+            notification.NotificationId,
+            notification.Recipient);
     }
 }

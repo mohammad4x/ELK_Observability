@@ -24,11 +24,14 @@ public sealed class BookingRequestedConsumer(
             DateTimeOffset.UtcNow,
             metadata.EventId,
             metadata.CorrelationId,
-            metadata.CausationId);
+            metadata.CausationId,
+            context.Message.Scenario);
 
         state.MarkRequested(message);
         await publishEndpoint.Publish(message, context.CancellationToken);
 
-        logger.LogInformation("Payment requested for booking {BookingId}", context.Message.BookingId);
+        logger.LogInformation(
+            "Payment requested for booking {BookingId}",
+            context.Message.BookingId);
     }
 }

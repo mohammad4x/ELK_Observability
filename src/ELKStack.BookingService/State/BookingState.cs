@@ -79,4 +79,28 @@ public sealed class BookingState
                 NotificationSentAt = message.SentAt
             });
     }
+
+    public BookingRecord MarkPaymentFailed(PaymentFailed message)
+    {
+        return _bookings.AddOrUpdate(
+            message.BookingId,
+            _ => new BookingRecord(
+                message.BookingId,
+                "Unknown passenger",
+                "unknown@example.com",
+                "Unknown destination",
+                message.Amount,
+                message.Currency,
+                "PaymentFailed",
+                message.FailedAt,
+                null,
+                null,
+                null,
+                message.FailedAt),
+            (_, existing) => existing with
+            {
+                Status = "PaymentFailed",
+                FailedAt = message.FailedAt
+            });
+    }
 }

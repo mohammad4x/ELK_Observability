@@ -1,410 +1,271 @@
-<h1 dir="rtl" align="right">ELKStack</h1>
+<div dir="rtl">
 
-<p dir="rtl" align="right">
-  <a href="README.md"><strong>English</strong></a>
-</p>
+# مشاهده‌پذیری: فهم یک سامانهٔ توزیع‌شده
 
-<p dir="rtl" align="right">
-یک نمونه عملی میکروسرویسی با <span dir="ltr">.NET 10</span> برای توضیح مشاهده پذیری، رهگیری توزیع شده، همبستگی رویدادها، و این که وقتی لاگ، تریس، متریک و متادیتای جریان کاری در یک مسیر قابل بررسی باشند چه چیزی تغییر می کند.
-</p>
+[English](README.md)
 
-<p dir="rtl" align="right">
-این مخزن قرار نیست یک سامانه کسب و کاری کامل باشد. هدف آن یک دموی متمرکز برای ارائه فنی است: یک درخواست <span dir="ltr">HTTP</span> وارد سیستم می شود، به زنجیره ای از رویدادهای <span dir="ltr">RabbitMQ</span> تبدیل می شود، و لاگ، تریس، متریک و متادیتای همبستگی تولید می کند که از ابتدا تا انتها قابل دنبال کردن هستند. اجرای محلی این سناریو با <span dir="ltr">.NET Aspire</span> و پروژه <a href="Aspire/ELKStack.AppHost/AppHost.cs"><span dir="ltr">ELKStack.AppHost</span></a> انجام می شود.
-</p>
+این راهنما از سامانهٔ رزرو موجود در این مخزن به‌عنوان نمونه استفاده می‌کند، اما مفاهیم آن برای .NET، Java/Spring، Python/Django، سرویس‌های frontend و دیگر برنامه‌های توزیع‌شده کاربرد دارد.
 
-<p dir="rtl" align="right">
-کد عمدا کوچک نگه داشته شده تا داستان عملیاتی سیستم واضح بماند. این دمو telemetry را چند خروجی جداگانه نمی بیند؛ آن را یک سطح تحقیقاتی واحد برای پاسخ دادن به یک پرسش می داند: برای این عملیات کسب و کاری دقیقا چه اتفاقی افتاد؟
-</p>
+برای جزئیات پیاده‌سازی، چیدمان پروژه و اجرای محلی، [راهنمای فنی](README.technical.fa.md) را ببینید.
 
-<h2 dir="rtl" align="right">چرا Observability در میکروسرویس مهم است</h2>
+## چرا مشاهده‌پذیری مهم است
 
-<p dir="rtl" align="right">
-در یک مونولیت، یک درخواست ناموفق اغلب داخل یک پردازه و یک جریان لاگ باقی می ماند. در میکروسرویس ها همان اقدام کاربر از مرز پردازه ها، صف ها، consumerهای پس زمینه، retryها و side effectهای ناهمگام عبور می کند. یک عملیات کسب و کاری می تواند چند سرویس را درگیر کند، حتی اگر کاربر فقط یک درخواست فرستاده باشد.
-</p>
-
-<p dir="rtl" align="right">پایش سنتی معمولا به این پرسش ها پاسخ می دهد:</p>
-
-```text
-Is the service up?
-Is CPU high?
-Is request latency high?
-```
-
-<p dir="rtl" align="right">اما مشاهده پذیری باید به پرسش های سخت تر پاسخ دهد:</p>
-
-```text
-Which service touched this user request?
-Which event caused the next event?
-Where did the workflow slow down?
-Which log lines, spans, and metrics belong to the same business operation?
-Can we debug it without guessing across dashboards?
-```
-
-<p dir="rtl" align="right">
-این نمونه دقیقا حول همین پرسش ها ساخته شده است؛ با این فرض که پاسخ باید بدون دوختن دستی چند نمای نامرتبط به هم قابل بازسازی باشد.
-</p>
-
-<h2 dir="rtl" align="right">سیستم دمو</h2>
-
-<p dir="rtl" align="right">
-راه حل شامل سه سرویس مبتنی بر controller است که با <span dir="ltr">MassTransit 8</span> و <span dir="ltr">RabbitMQ</span> کار می کنند:
-</p>
-
-<table dir="rtl" align="right">
-  <thead>
-    <tr>
-      <th align="right">پروژه</th>
-      <th align="right">نقش</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="left"><a href="src/ELKStack.BookingService/Program.cs">ELKStack.BookingService</a></td>
-      <td align="right">درخواست رزرو را می پذیرد و وضعیت رزرو را نگه می دارد.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="src/ELKStack.PaymentService/Program.cs">ELKStack.PaymentService</a></td>
-      <td align="right">به رزرو واکنش نشان می دهد، پرداخت را درخواست می کند و آن را کامل می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="src/ELKStack.NotificationService/Program.cs">ELKStack.NotificationService</a></td>
-      <td align="right">به رزرو تایید شده واکنش نشان می دهد و اعلان ارسال می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="src/ELKStack.Contracts/IntegrationEvents.cs">ELKStack.Contracts</a></td>
-      <td align="right">قراردادهای رویداد و متادیتای <code>EventId</code>، <code>CorrelationId</code> و <code>CausationId</code> را تعریف می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="Aspire/ELKStack.ServiceDefaults/Extensions.cs">ELKStack.ServiceDefaults</a></td>
-      <td align="right">service discovery، resilience پیش فرض HTTP، health endpointها، لاگ ساخت یافته و خروجی OpenTelemetry را اضافه می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="src/ELKStack.Observability/ObservabilityExtensions.cs">ELKStack.Observability</a></td>
-      <td align="right">انتقال correlation ویژه این پروژه را برای HTTP و MassTransit اضافه می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="Aspire/ELKStack.AppHost/AppHost.cs">ELKStack.AppHost</a></td>
-      <td align="right">RabbitMQ، Elasticsearch، APM Server، Kibana، OTel Collector و هر سه سرویس را با Aspire اجرا می کند.</td>
-    </tr>
-  </tbody>
-</table>
-
-<p dir="rtl" align="right">
-وضعیت سرویس ها عمدا در حافظه نگه داشته شده است. موضوع این نمونه persistence نیست؛ موضوع داستان مشاهده پذیری است.
-</p>
-
-<h2 dir="rtl" align="right">معماری</h2>
+در یک برنامهٔ ساده، یک درخواست ناموفق معمولاً در یک فرایند و یک جریان لاگ باقی می‌ماند. در یک برنامهٔ توزیع‌شده، همان اقدام می‌تواند زنجیره‌ای از کارهای مستقل شود: یک درخواست HTTP پیام منتشر می‌کند، یک worker بعداً آن را مصرف می‌کند، سرویس دیگری وابستگی بیرونی را فراخوانی می‌کند و نتیجه‌ای به‌صورت غیرهم‌زمان رخ می‌دهد. کاربر فقط یک نتیجه می‌بیند؛ مهندس باید چند قطعهٔ شواهد را درک کند.
 
 ```mermaid
 flowchart LR
-    Client[HTTP Client] --> Gateway[API Gateway]
+    U[کاربر یک رزرو ناموفق گزارش می‌کند] --> Q[چه شد؟]
+    Q --> H[درخواست HTTP]
+    Q --> M[پیام‌ها و مصرف‌کننده‌ها]
+    Q --> D[فراخوانی وابستگی]
+    Q --> S[سلامت و روند سرویس]
+    H --> E[شواهد مرتبط]
+    M --> E
+    D --> E
+    S --> E
+    E --> A[توضیح قابل دفاع]
+```
 
-    subgraph Services[Microservices]
-        direction TB
-        Booking[Booking Service]
-        Payment[Payment Service]
-        Notification[Notification Service]
+مشاهده‌پذیری به این معنی نیست که برای هر رخداد، هر مهندس باید همهٔ سیگنال‌ها را بررسی کند. یعنی سامانه آن‌قدر context نگه دارد که پس از خطا بتوان پرسشی تازه مطرح کرد و به‌جای حدس‌زدن از روی timestampها، مسیر شواهد را تا پاسخ دنبال کرد.
+
+## logs، metrics و traces
+
+این سیگنال‌ها هم‌پوشانی دارند، اما در سطح متفاوتی به بررسی رخداد کمک می‌کنند.
+
+| سیگنال | چه چیزی ثبت می‌کند؟ | پرسش مناسب برای شروع | نمونه در این سامانه |
+| --- | --- | --- | --- |
+| Log | رویداد، تصمیم یا exception با جزئیات | «کد پرداخت چه تصمیمی گرفت؟» | علت ردشدن توسط provider |
+| Metric | اندازه‌گیری تجمیعی از رویدادهای بسیار | «آیا خطاهای پرداخت در حال افزایش‌اند؟» | تعداد خطا یا histogram مدت‌زمان |
+| Trace | گراف زمان‌دار یک عملیات | «کدام سرویس یا وابستگی کند بود؟» | مسیر HTTP → RabbitMQ → Payment |
+
+یک metric برای تشخیص تغییر گسترده کارآمد است و عمداً جزئیات هر درخواست را از دست می‌دهد. trace مسیر اجرا و زمان‌بندی یک عملیات را برمی‌گرداند. log نیز context غنی محلی، مانند exception، پاسخ provider یا دلیل کسب‌وکاری را اضافه می‌کند. جایگزین دانستن یکی به‌جای دیگری، نقطهٔ کور ایجاد می‌کند.
+
+### سیگنال‌ها چگونه با هم کار می‌کنند
+
+فرض کنید پس از تغییر provider، خطاهای پرداخت زیاد می‌شوند. metric نشان می‌دهد نرخ خطا تغییر کرده و دامنهٔ اثر چقدر است، اما مسیر دقیق یک رزرو را نشان نمی‌دهد. trace می‌تواند کند یا ناموفق‌بودن span مربوط به provider را آشکار کند، اما شاید متن توضیح provider را نداشته باشد. structured log آن پیام و شناسه‌های لازم برای جست‌وجو را در بر می‌گیرد. بررسی قدرتمند می‌شود چون سیگنال‌ها به یکدیگر راه می‌دهند.
+
+```mermaid
+flowchart TD
+    A[Metric: افزایش خطاهای پرداخت] --> B[انتخاب یک trace آسیب‌دیده]
+    B --> C[یافتن span پرداخت/provider]
+    C --> D[خواندن structured error log]
+    D --> E[جست‌وجوی گردش‌کار کسب‌وکاری]
+```
+
+### metricهای pull در برابر push
+
+Prometheus مدل **pull** را رایج کرد: سرور Prometheus targetها را کشف می‌کند و endpoint ‌`/metrics` هر سرویس را به‌صورت دوره‌ای scrape می‌کند. این مدل برای زیرساخت در یک محیط با اتصال مناسب قدرتمند است: collector زمان scrape را کنترل می‌کند، می‌بیند target در دسترس هست یا نه و service discovery بخش اصلی طراحی است.
+
+OpenTelemetry برای metricهای برنامه معمولاً از **push** استفاده می‌کند: SDK اندازه‌گیری‌ها را batch کرده و با OTLP به Collector می‌فرستد؛ Collector سپس آن‌ها را به backend انتخابی می‌فرستد.
+
+```mermaid
+flowchart LR
+    subgraph Pull[Pull: به سبک Prometheus]
+      P[Prometheus] -->|scrape /metrics| A[Service A]
+      P -->|scrape /metrics| B[Service B]
     end
-
-    Gateway --> Booking
-    Gateway --> Payment
-    Gateway --> Notification
-
-    Services <--> Rabbit[(RabbitMQ)]
-    Services --> OTEL[OpenTelemetry Collector]
-    OTEL --> Elastic[Elastic APM / Elasticsearch / Kibana]
-
-    classDef service fill:#dbeafe,stroke:#2563eb,color:#0f172a
-    classDef gateway fill:#ede9fe,stroke:#7c3aed,color:#2e1065
-    classDef broker fill:#fef3c7,stroke:#d97706,color:#111827
-    classDef observability fill:#dcfce7,stroke:#16a34a,color:#052e16
-    classDef client fill:#fce7f3,stroke:#db2777,color:#500724
-
-    class Booking,Payment,Notification service
-    class Gateway gateway
-    class Rabbit broker
-    class OTEL,Elastic observability
-    class Client client
+    subgraph Push[Push: به سبک OpenTelemetry]
+      C[Service A / SDK] -->|OTLP| O[Collector]
+      D[Service B / SDK] -->|OTLP| O
+      O --> X[Backend]
+    end
 ```
 
-<p dir="rtl" align="right">
-در این نمودار، <span dir="ltr">API Gateway</span> فقط به عنوان یک لبه اختیاری production-style نمایش داده شده است. این بخش در نمونه پیاده سازی نشده و هر سرویس را می توان مستقیم فراخوانی کرد.
-</p>
+برای این مخزن، **push مدل ترجیحی برای telemetry برنامه است**:
 
-<h2 dir="rtl" align="right">جریان کسب و کاری</h2>
+- یک مسیر OTLP برای metrics، traces و logs داریم؛ بنابراین تیم برنامه تنها یک مسیر خروج telemetry پیکربندی می‌کند؛
+- سرویس‌ها به endpoint قابل دسترس برای scrape یا discovery مخصوص scraper نیاز ندارند؛
+- Collector، batch، retry، authentication، filtering و routing به backend را متمرکز می‌کند؛ این موضوع برای containerها، workerهای کوتاه‌عمر و چند محیط کاربردی است؛
+- برنامه مستقل از backend باقی می‌ماند: با عوض‌کردن exporter در Collector، کد تولید metric عوض نمی‌شود.
 
-<p dir="rtl" align="right">دمو با این درخواست رزرو شروع می شود:</p>
+این ترجیح برای برنامهٔ رویدادمحور این مخزن است، نه رد Prometheus. pull همچنان برای metricهای Kubernetes، node و زیرساخت و تیم‌هایی که در Prometheus discovery و PromQL سرمایه‌گذاری کرده‌اند عالی است. مدل ترکیبی متداول است: زیرساخت را با Prometheus scrape کنید و telemetry برنامه را با OTLP push کنید. [Prometheus و OTLP](https://opentelemetry.io/docs/compatibility/prometheus/otlp-metrics-export/)، [OTLP metrics exporter](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/otlp/)
 
-```http
-POST http://localhost:5101/api/bookings
-Content-Type: application/json
-X-Correlation-ID: 4b05c640-2a8a-42c9-a732-75a608f7dc09
+## structured logs و Serilog
 
-{
-  "passengerName": "Sara Ahmadi",
-  "customerEmail": "sara@example.com",
-  "destination": "Berlin",
-  "amount": 1490,
-  "currency": "EUR"
-}
+یک رکورد لاگ باید چیزی بیش از یک جملهٔ renderشده باشد. می‌تواند زمان، level، category، exception، message template، propertyهای نام‌دار و attributeهای contextual مثل نام سرویس یا correlation ID داشته باشد.
+
+```csharp
+// شناسه تنها بخشی از متن است؛ backend باید جمله را parse کند.
+logger.LogInformation($"Payment {paymentId} failed");
+
+// شناسه‌ها propertyهای مستقل و قابل جست‌وجو هستند.
+logger.LogWarning(
+    "Payment {PaymentId} failed for booking {BookingId}: {Reason}",
+    paymentId, bookingId, reason);
 ```
 
-<p dir="rtl" align="right">
-متد <a href="src/ELKStack.BookingService/Controllers/BookingsController.cs"><span dir="ltr">BookingsController.Create</span></a> رویداد <span dir="ltr">BookingRequested</span> را منتشر می کند. از آنجا به بعد، جریان به شکل ناهمگام ادامه پیدا می کند:
-</p>
+در .NET، `ILogger<T>` یک abstraction است. `ILoggerFactory` رکوردها را به providerهای ثبت‌شده می‌فرستد و ASP.NET Core این pipeline را با `WebApplication.CreateBuilder` و dependency injection پیکربندی می‌کند. این مخزن از Serilog به‌عنوان provider برای رویدادهای ساخت‌یافته، enrichment context، خروجی console، export لاگ از طریق OTLP و یک رکورد تکمیل درخواست برای هر HTTP request استفاده می‌کند. کد کسب‌وکار همچنان به `ILogger<T>` وابسته است، نه API اختصاصی Serilog.
+
+لاگ ساخت‌یافته در سامانهٔ توزیع‌شده حیاتی است، چون یک جملهٔ قابل‌خواندن برای انسان data model پایداری نیست. نام فیلدهایی مانند `BookingId`، `PaymentId`، `Reason`، `ServiceName` و `CorrelationId` دستگیره‌هایی می‌شوند که با آن‌ها می‌توان شواهد را filter، aggregate، alert و مرتبط کرد. نام‌هایی متناسب با دامنه انتخاب کنید، retention و امنیت مقدارها را در نظر بگیرید و دادهٔ حساس یا high-cardinality را بدون سیاست مشخص وارد نکنید.
+
+## OpenTelemetry
+
+OpenTelemetry یک استاندارد و ecosystem متن‌باز و مستقل از فروشنده است. API، SDK، instrumentation library، semantic convention، Collector و OTLP، یعنی پروتکل انتقال telemetry، را تعریف می‌کند. خود آن database، dashboard یا محصول alerting نیست.
+
+```mermaid
+flowchart LR
+    I[Framework و custom instrumentation] --> S[OpenTelemetry SDK]
+    S --> P[OTLP]
+    P --> C[Collector]
+    C --> X[Elastic، Tempo، Jaeger، Datadog یا backend دیگر]
+```
+
+این مرز، instrumentation برنامه را از تغییر backend محافظت می‌کند. انتقال به backend دیگر ممکن است همچنان dashboard، query، retention و alert را تغییر دهد، اما مجبور نیست هر span دستی در کد را بازنویسی کند. در .NET، OpenTelemetry بر `System.Diagnostics.Activity`، `ActivitySource` و `Meter` بنا شده است؛ یک `Activity` از نظر مفهومی همان span است.
+
+OpenTelemetry همچنین زبان مشترک تیم‌هاست. سرویس می‌تواند attributeها را با semantic convention ثبت کند، context استاندارد W3C را روی HTTP و messaging منتقل کند و سیگنال‌ها را با OTLP بفرستد. بنابراین سرویس‌های چندزبان راحت‌تر در یک بررسی واحد مشارکت می‌کنند.
+
+### SDK ‏OpenTelemetry در .NET چگونه کار می‌کند
+
+OpenTelemetry در .NET یک دنیای tracing جداگانه جایگزین runtime diagnostics نمی‌کند؛ بر APIهای diagnostics خود runtime ساخته می‌شود.
 
 ```mermaid
 sequenceDiagram
-    autonumber
-    participant C as HTTP Client
-    participant B as Booking Service
-    participant R as RabbitMQ
-    participant P as Payment Service
-    participant N as Notification Service
+    participant App as ASP.NET Core / کد برنامه
+    participant Source as ActivitySource
+    participant SDK as OpenTelemetry SDK listener
+    participant Collector as OTLP Collector
+    participant Backend as Observability backend
 
-    C->>B: POST /api/bookings
-    B->>R: BookingRequested
-    R->>P: BookingRequested
-    P->>R: PaymentRequested
-    R->>P: PaymentRequested
-    P->>R: PaymentCompleted
-    R->>B: PaymentCompleted
-    B->>R: BookingConfirmed
-    R->>N: BookingConfirmed
-    N->>R: NotificationRequested
-    R->>N: NotificationRequested
-    N->>R: NotificationSent
-    R->>B: NotificationSent
+    App->>Source: StartActivity("payment.authorize")
+    Source->>SDK: آیا listener علاقه‌مند است؟ sampling؟
+    SDK-->>Source: تصمیم Yes / No
+    Source-->>App: Activity یا null
+    App->>App: افزودن tag، event و status امن
+    App->>Source: Stop / dispose Activity
+    SDK->>Collector: export spanهای انتخاب‌شده با OTLP
+    Collector->>Backend: پردازش و مسیردهی telemetry
 ```
 
-<p dir="rtl" align="right">
-این همان جایی است که observability ضروری می شود. درخواست اولیه HTTP همه کارها را مستقیم اجرا نمی کند؛ زنجیره ای توزیع شده را آغاز می کند که رفتار واقعی آن فقط وقتی روشن می شود که داده درخواست، جریان پیام، لاگ ها و تریس ها کنار هم دیده شوند.
-</p>
+| نوع .NET | مسئولیت | رابطه با OpenTelemetry |
+| --- | --- | --- |
+| `Activity` | یک عملیات درون‌فرایندی با زمان شروع/پایان، parent context، ID، tag، event، link و status | از نظر مفهومی یک span |
+| `Activity.Current` | عملیات محیطی جاری را در اجرای async حمل می‌کند | فرزندها trace/span context را به ارث می‌برند |
+| `ActivitySource` | producer نام‌دار برای ساخت `Activity` | منبع tracing برنامه/کتابخانه که SDK به آن subscribe می‌شود |
+| `ActivityListener` | lifecycle فعالیت را می‌بیند و در sampling مشارکت می‌کند | primitive listener مورد استفادهٔ زیرساخت tracing |
+| `Meter` | producer نام‌دار instrumentهای metric | همتای metric برای `ActivitySource` |
+| Instruments | `Counter`، `UpDownCounter`، `Histogram`، `ObservableGauge` و… | measurement همراه با dimension/tag اختیاری تولید می‌کنند |
 
-<h2 dir="rtl" align="right">Correlation و Causation</h2>
-
-<p dir="rtl" align="right">
-هر رویداد <a href="src/ELKStack.Contracts/IntegrationEvents.cs"><span dir="ltr">IIntegrationEvent</span></a> را پیاده سازی می کند:
-</p>
+نکتهٔ مهم کارایی این است که وقتی listener علاقه‌مندی وجود ندارد، `ActivitySource.StartActivity` می‌تواند `null` برگرداند. بنابراین instrumentation libraryها می‌توانند diagnostics منتشر کنند بدون آن‌که همیشه span ایجاد و export شود. وقتی SDK با `.AddSource("name")` پیکربندی شود، به همان source نام‌دار گوش می‌دهد، sampler و processor را اعمال می‌کند و Activityهای انتخاب‌شده را export می‌کند.
 
 ```csharp
-public interface IIntegrationEvent
-{
-    Guid EventId { get; }
-    DateTimeOffset OccurredAt { get; }
-    Guid CorrelationId { get; }
-    Guid? CausationId { get; }
-}
+// کد برنامه یا کتابخانه: انتشار یک عملیات معنادار.
+private static readonly ActivitySource Source = new("Booking.Payment");
+
+using var activity = Source.StartActivity("payment.authorize");
+activity?.SetTag("payment.provider", "example-provider");
+activity?.SetStatus(ActivityStatusCode.Error, "Provider rejected payment");
 ```
 
-<table dir="rtl" align="right">
-  <thead>
-    <tr>
-      <th align="right">فیلد</th>
-      <th align="right">هدف</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="left"><code>CorrelationId</code></td>
-      <td align="right">لاگ، تریس، درخواست و رویدادهای یک workflow را به هم وصل می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><code>EventId</code></td>
-      <td align="right">یک نمونه مشخص از رویداد را شناسایی می کند.</td>
-    </tr>
-    <tr>
-      <td align="left"><code>CausationId</code></td>
-      <td align="right">به رویداد والد اشاره می کند که باعث ایجاد رویداد فعلی شده است.</td>
-    </tr>
-  </tbody>
-</table>
+این کار با ساخت دستی `TraceId` فرق دارد. runtime رابطهٔ parent/child را از `Activity.Current` می‌سازد؛ instrumentation فریم‌ورک نیز در مرزهای پشتیبانی‌شدهٔ HTTP و messaging، header استاندارد W3C یعنی `traceparent` را می‌خواند یا تزریق می‌کند. در این مخزن، ASP.NET Core و `HttpClient` spanهای فریم‌ورکی می‌سازند و MassTransit فعالیت‌های خود را با source مخصوص خود منتشر می‌کند. [Service Defaults](Aspire/ELKStack.ServiceDefaults/Extensions.cs) به source سرویس و `MassTransit` subscribe می‌شود:
 
-<p dir="rtl" align="right">زنجیره رویدادها به یک درخت رویداد تبدیل می شود:</p>
-
-```mermaid
-flowchart LR
-    A["A: BookingRequested<br/>root"]
-    B["B: PaymentRequested<br/>caused by A"]
-    C["C: PaymentCompleted<br/>caused by B"]
-    D["D: BookingConfirmed<br/>caused by C"]
-    E["E: NotificationRequested<br/>caused by D"]
-    F["F: NotificationSent<br/>caused by E"]
-
-    A --> B --> C --> D --> E --> F
-
-    classDef root fill:#fee2e2,stroke:#dc2626,color:#450a0a
-    classDef payment fill:#fef3c7,stroke:#d97706,color:#422006
-    classDef booking fill:#dbeafe,stroke:#2563eb,color:#172554
-    classDef notify fill:#dcfce7,stroke:#16a34a,color:#052e16
-
-    class A root
-    class B,C payment
-    class D booking
-    class E,F notify
+```csharp
+.WithTracing(tracing => tracing
+    .AddSource(serviceName)
+    .AddSource("MassTransit")
+    .AddAspNetCoreInstrumentation()
+    .AddHttpClientInstrumentation());
 ```
 
-<p dir="rtl" align="right">
-همه گره ها <code>CorrelationId</code> مشترک دارند و هر فرزند از طریق <code>CausationId</code> به والد خود اشاره می کند.
-</p>
+metricها همان ایدهٔ producer/listener را برای پرسش‌های تجمیعی دنبال می‌کنند. یک `Meter` instrumentهای نام‌دار دارد. counter رخداد را ثبت می‌کند، up/down counter مقداری را نشان می‌دهد که بالا و پایین می‌رود و histogram توزیعی مثل مدت‌زمان درخواست یا provider را ثبت می‌کند. dimensionها filterهای خوبی هستند، اما مقدارهای نامحدود مانند booking ID نباید dimension metric شوند؛ چنین کاری high cardinality و هزینهٔ metric را بالا می‌برد.
 
-<p dir="rtl" align="right">نقاط اصلی پیاده سازی:</p>
+```csharp
+private static readonly Meter Meter = new("Booking.Payment");
+private static readonly Counter<long> Failures =
+    Meter.CreateCounter<long>("payment.failures");
+private static readonly Histogram<double> Duration =
+    Meter.CreateHistogram<double>("payment.provider.duration", unit: "ms");
 
-<ul dir="rtl" align="right">
-  <li><a href="src/ELKStack.Observability/Correlation/CorrelationMiddleware.cs"><span dir="ltr">CorrelationMiddleware</span></a> شناسه های correlation مربوط به درخواست HTTP را می خواند یا ایجاد می کند.</li>
-  <li><a href="src/ELKStack.Observability/Correlation/CorrelationConsumeFilter.cs"><span dir="ltr">CorrelationConsumeFilter</span></a> هنگام دریافت رویداد، عملیات فرزند می سازد.</li>
-  <li><a href="src/ELKStack.Observability/Correlation/CorrelationPublishFilter.cs"><span dir="ltr">CorrelationPublishFilter</span></a> متادیتای رویداد را در headerهای MassTransit قرار می دهد.</li>
-</ul>
-
-<h2 dir="rtl" align="right">پایپ لاین Observability</h2>
-
-```mermaid
-flowchart LR
-    subgraph App["Each .NET service"]
-        Logs[Structured Logs]
-        Traces[Distributed Traces]
-        Metrics[Runtime / HTTP Metrics]
-        Events[Event Metadata]
-    end
-
-    Logs --> OTLP[OTLP gRPC :4317]
-    Traces --> OTLP
-    Metrics --> OTLP
-    Events --> Logs
-    Events --> Traces
-
-    OTLP --> Collector[OpenTelemetry Collector]
-    Collector --> Debug[Debug Exporter]
-    Collector --> Elastic[Elastic APM Server]
-    Elastic --> Kibana[Kibana]
-
-    classDef app fill:#e0f2fe,stroke:#0284c7,color:#082f49
-    classDef pipe fill:#ede9fe,stroke:#7c3aed,color:#2e1065
-    classDef elk fill:#dcfce7,stroke:#16a34a,color:#052e16
-
-    class Logs,Traces,Metrics,Events app
-    class OTLP,Collector pipe
-    class Debug,Elastic,Kibana elk
+Failures.Add(1, new KeyValuePair<string, object?>("payment.outcome", "failed"));
+Duration.Record(elapsed.TotalMilliseconds);
 ```
 
-<p dir="rtl" align="right">
-پروژه <a href="Aspire/ELKStack.ServiceDefaults/Extensions.cs"><span dir="ltr">ELKStack.ServiceDefaults</span></a> لایه مشترک Aspire را آماده می کند:
-</p>
+SDK این measurementها را جمع‌آوری و مطابق pipeline metric تجمیع می‌کند و سپس export می‌کند. به همین دلیل metric می‌تواند ارزان به پرسش «آیا نرخ خطا بالا می‌رود؟» پاسخ دهد، در حالی که trace یا log هنوز برای توضیح یک خطای مشخص لازم است. مستندات Microsoft، `ActivitySource` را API ساخت Activity و ثبت listener و `Meter` را نوع سازنده و نگهدارندهٔ instrumentها معرفی می‌کند. [ActivitySource](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activitysource)، [Meter](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics.meter)
 
-<ul dir="rtl" align="right">
-  <li>لاگ ساخت یافته با Serilog</li>
-  <li>request logging</li>
-  <li>تریس و متریک های OpenTelemetry</li>
-  <li>خروجی OTLP</li>
-  <li>تریس MassTransit از طریق activity source با نام <code>MassTransit</code></li>
-  <li>service discovery و HTTP resilience پیش فرض</li>
-  <li>health و liveness endpointها</li>
-</ul>
+## instrumentation خودکار و کدنویسی‌شده
 
-<p dir="rtl" align="right">
-پروژه <a href="src/ELKStack.Observability/ObservabilityExtensions.cs"><span dir="ltr">ELKStack.Observability</span></a> این موارد را اضافه می کند:
-</p>
+instrumentation خودکار مرزهای رایج فریم‌ورک را با تغییر کم یا بدون تغییر کد برنامه مشاهده می‌کند. بسته به runtime، این کار می‌تواند با Java agent، monkey patch در Python، startup hook/profiling در .NET یا eBPF انجام شود. راهی عالی برای پوشش سریع HTTP ورودی، HTTP خروجی، database، messaging و signalهای runtime است.
 
-<ul dir="rtl" align="right">
-  <li>فیلدهای correlation در لاگ ها و spanها</li>
-  <li>فیلترهای consume/publish مربوط به MassTransit برای انتقال متادیتای رویداد</li>
-</ul>
+instrumentation درون کد با قصد مشخص telemetry تولید می‌کند. با آن می‌توان عملیات معنادار کسب‌وکار را نام‌گذاری کرد، attributeهای امن کسب‌وکاری افزود، زمان provider پرداخت را ثبت کرد یا outcomeهای دامنه را شمرد.
 
-<p dir="rtl" align="right">
-زیرساخت اجرایی اکنون در حالت اصلی با <a href="Aspire/ELKStack.AppHost/AppHost.cs"><span dir="ltr">ELKStack.AppHost</span></a> orchestration می شود. فایل های <a href="docker-compose.yml"><span dir="ltr">docker-compose.yml</span></a> و <a href="otel-collector-config.yml"><span dir="ltr">otel-collector-config.yml</span></a> هم برای مسیر مستقل قبلی مربوط به collector و RabbitMQ در مخزن باقی مانده اند.
-</p>
+| instrumentation خودکار را ترجیح دهید وقتی… | instrumentation کدنویسی‌شده را ترجیح دهید وقتی… |
+| --- | --- |
+| یک مرز framework/library کافی است | پرسش دربارهٔ intent کسب‌وکاری است |
+| baseline سریع یا پوشش legacy می‌خواهید | span یا metric مخصوص دامنه لازم دارید |
+| telemetry یکنواخت کتابخانه می‌خواهید | باید attribute و cardinality را کنترل کنید |
 
-<h2 dir="rtl" align="right">خواندن workflow در Kibana</h2>
+بهترین طراحی هر دو را ترکیب می‌کند. [OpenTelemetry zero-code instrumentation](https://opentelemetry.io/docs/zero-code/) روش‌های پشتیبانی‌شده در زبان‌های مختلف را مستند می‌کند.
 
-<p dir="rtl" align="right">
-وقتی جریان اجرا می شود، Kibana فقط مقصد dashboard نیست. این همان جایی است که نمای سطح سرویس و نمای سطح عملیات کسب و کاری به هم نزدیک می شوند: درخواست ورودی، spanهای پایین دستی، لاگ ها و metadata در یک مسیر تحقیقاتی دیده می شوند.
-</p>
+## در اکوسیستم‌های مختلف
 
-![Kibana view of the ELKStack demo](docs/example.png)
+syntaxها متفاوت‌اند، اما مدل یکسان است.
 
-<p dir="rtl" align="right">
-این موضوع هنگام بررسی incident مهم تر می شود. یک correlation ID به خودی خود مفید است، اما وقتی بتواند به عنوان کلید جستجو روی telemetry کل عملیات عمل کند، ارزش عملی بسیار بیشتری پیدا می کند.
-</p>
+| اکوسیستم | instrumentation خودکار رایج | API قابل برنامه‌نویسی |
+| --- | --- | --- |
+| ASP.NET Core | ASP.NET Core، HttpClient، runtime و کتابخانه‌های پشتیبانی‌شده | `ActivitySource`، `Meter` و OTel .NET SDK |
+| Java / Spring | Java agent برای servlet، Spring، JDBC و کتابخانه‌ها | OTel Java API/SDK |
+| Python / Django | `opentelemetry-instrument` برای Django و کتابخانه‌ها | OTel Python API/SDK |
 
-<h2 dir="rtl" align="right">چرا این مدل عملیاتی با این workflow جور است</h2>
+همه می‌توانند trace context را حفظ کنند، resource attributeهایی مانند نام سرویس و environment را اضافه کنند، semantic conventionها را دنبال کنند و با OTLP export کنند.
 
-<p dir="rtl" align="right">
-Grafana، Loki، Tempo، Prometheus و Jaeger ابزارهای قدرتمندی هستند. این دمو ادعا نمی کند که آن ها ضعیف اند؛ نشان می دهد وقتی چنین workflow رویدادمحوری از مسیر search-centric و correlation-friendly در Elastic بررسی شود، چه چیزهایی ساده تر می شوند.
-</p>
+## اجرای فنی و گردش‌کار کسب‌وکاری
 
-<table dir="rtl" align="right">
-  <thead>
-    <tr>
-      <th align="right">نیاز در investigation</th>
-      <th align="right">چرا مسیر Elastic در اینجا کمک می کند</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td align="right">دنبال کردن یک عملیات کسب و کاری بین سرویس ها</td>
-      <td align="right"><code>CorrelationId</code>، <code>CausationId</code> و <code>EventId</code> کنار trace و log قرار می گیرند، نه این که به bookkeeping بیرونی تبدیل شوند.</td>
-    </tr>
-    <tr>
-      <td align="right">حرکت سریع از symptom به evidence</td>
-      <td align="right">Elasticsearch فیلدهای ساخت یافته و متن پیام را به نقطه های طبیعی ورود برای investigation تبدیل می کند.</td>
-    </tr>
-    <tr>
-      <td align="right">حفظ vendor-neutral بودن telemetry برنامه</td>
-      <td align="right">سرویس ها OpenTelemetry-first می مانند و از مسیر Collector/APM خروجی می دهند.</td>
-    </tr>
-    <tr>
-      <td align="right">کم کردن context switching هنگام diagnosis</td>
-      <td align="right">لاگ، trace، داده APM و سیگنال های زیرساختی مرتبط در یک تجربه observability جمع می شوند.</td>
-    </tr>
-    <tr>
-      <td align="right">حفظ معماری جمع و جور برای دمو</td>
-      <td align="right">استک، یک workflow کامل investigation را توضیح می دهد بدون آن که روایت بین چند backend تخصصی جابه جا شود.</td>
-    </tr>
-  </tbody>
-</table>
-
-<p dir="rtl" align="right">واضح ترین آزمون، سناریوی incident است:</p>
+tracing یک گراف اجرای فنی است. گردش‌کارهای کسب‌وکاری اغلب به نوع دوم context هم نیاز دارند. این مخزن هر دو را نگه می‌دارد:
 
 ```text
-User reports "booking confirmation is slow"
--> search the CorrelationId in Elastic
--> see the HTTP request, logs, event IDs, and traces together
--> follow CausationId from BookingRequested to NotificationSent
--> identify the slow service or failed event without rebuilding the workflow in your head
+TraceId       مسیر فنی و زمان‌بندی یک اجرای محدود
+CorrelationId عضویت در یک گردش‌کار کاربر/کسب‌وکار
+EventId       هویت یک پیام یا رویداد
+CausationId   رویداد پیشینی که علت رویداد فعلی است
 ```
 
-<p dir="rtl" align="right">
-برای این نوع سیستم میکروسرویسی رویدادمحور، سود اصلی فقط جمع آوری telemetry نیست. سود اصلی کوتاه کردن فاصله بین «یک چیزی خراب است» و «این عملیات توضیح می دهد چرا» است.
-</p>
+مثلاً retry پرداخت می‌تواند trace جدیدی باشد، اما همچنان به همان گردش‌کار رزرو تعلق داشته باشد. پیام زمان‌بندی‌شده یا تأیید انسانی ممکن است ساعت‌ها پس از پایان درخواست HTTP اولیه رخ دهد. correlation کسب‌وکاری این داستان طولانی‌تر را قابل جست‌وجو می‌کند، بدون آن‌که آن را یک trace پیوسته جلوه دهد.
 
-<h2 dir="rtl" align="right">اجرای دمو</h2>
+## چشم‌انداز ابزارها
 
-<p dir="rtl" align="right">ابتدا AppHost مربوط به Aspire را اجرا کنید:</p>
+هیچ فهرستی توصیهٔ قطعی برای همه نیست. این ابزارهای شناخته‌شده شکل معمول ecosystem را نشان می‌دهند:
 
-```powershell
-dotnet run --project Aspire/ELKStack.AppHost/ELKStack.AppHost.csproj
+| سیگنال | ابزارهای متن‌بازمحور | پلتفرم‌های یکپارچه/تجاری |
+| --- | --- | --- |
+| Metrics | Prometheus، Grafana Mimir، VictoriaMetrics | Elastic، Datadog، New Relic |
+| Logs | Elastic، Grafana Loki، OpenSearch | Splunk، Datadog، New Relic |
+| Traces | Jaeger، Grafana Tempo، Zipkin | Elastic APM، Honeycomb، Datadog، New Relic |
+
+[Prometheus](https://prometheus.io/docs/introduction/overview/) یک سیستم metrics محبوب است. [Tempo](https://grafana.com/docs/tempo/latest/) backend tracing است که برای پیوند trace با logs و metrics طراحی شده. [Jaeger](https://www.jaegertracing.io/docs/) پلتفرم distributed tracing است.
+
+## چرا Elastic Observability
+
+Elastic تنها انتخاب معتبر نیست. برای این مخزن، به دلایل عملی زیر مناسب است:
+
+1. **یک سطح بررسی:** structured logها، traceها، metricها و شناسه‌های workflow را می‌توان در یک محصول بررسی کرد.
+2. **جست‌وجو متناسب با مسئله است:** `CorrelationId`، `EventId`، `CausationId`، booking ID و نوع پیام دستگیره‌های طبیعی جست‌وجوی رخدادند.
+3. **OpenTelemetry قرارداد برنامه می‌ماند:** Elastic برای logs، metrics و traces، OTLP را می‌پذیرد؛ کد به API instrumentation اختصاصی Elastic نوشته نشده است.
+4. **Elastic APM حرکت در traceها را آسان‌تر می‌کند:** viewهای service و transaction برای یک دمو رویدادمحور اصطکاک راه‌اندازی را کم می‌کنند.
+5. **Collector خنثی باقی می‌ماند:** batching، filtering، sampling، enrichment و routing می‌تواند بیرون از کد برنامه تکامل پیدا کند.
+
+trade-off هم وجود دارد: اجرای Elastic هزینه و ملاحظات عملیاتی/licensing دارد و dashboard و queryها وابسته به backend هستند. ارزش اینجا کوتاه‌کردن مسیر «چیزی مشکل دارد» تا «این عملیات دلیل را توضیح می‌دهد» است، در حالی که instrumentation باز باقی می‌ماند. Elastic دریافت native [OTLP](https://www.elastic.co/docs/solutions/observability/apm/opentelemetry-intake-api) را مستند کرده است.
+
+## خواندن گردش‌کار این مخزن
+
+شناسه‌های کسب‌وکاری، tracing فنی را تکمیل می‌کنند:
+
+```text
+TraceId       گراف اجرای فنی و زمان‌بندی
+CorrelationId عضویت در یک گردش‌کار کسب‌وکاری
+EventId       هویت یک پیام/رویداد
+CausationId   پیام پیشینی که باعث پیام بعدی شده است
 ```
 
-<p dir="rtl" align="right">سپس یک رزرو بسازید:</p>
+این تفکیک برای retry، delayed message، کار زمان‌بندی‌شده و گردش‌کارهای human-in-the-loop مهم است؛ یک عملیات کسب‌وکاری می‌تواند بیش از یک trace عمر کند.
 
-```powershell
-$correlationId = [guid]::NewGuid()
+## بررسی نمونه
 
-Invoke-RestMethod http://localhost:5101/api/bookings `
-  -Method Post `
-  -ContentType 'application/json' `
-  -Headers @{ 'X-Correlation-ID' = $correlationId } `
-  -Body '{"passengerName":"Sara Ahmadi","customerEmail":"sara@example.com","destination":"Berlin","amount":1490,"currency":"EUR"}'
-```
+راهنمای فنی اجرای سامانه و ارسال درخواست `PaymentFailure` را توضیح می‌دهد. پس از اجرا، این ترتیب را دنبال کنید:
 
-<h2 dir="rtl" align="right">منابع</h2>
+1. پرداخت ناموفق را با یک فیلد ساخت‌یافته در logها پیدا کنید.
+2. trace آن را باز کنید و مسیر سرویس/پیام را بررسی کنید.
+3. با `CorrelationId` کل گردش‌کار رزرو را جست‌وجو کنید.
+4. با `EventId` و `CausationId` بفهمید کدام پیام باعث پیام بعدی شده است.
 
-<ul dir="rtl" align="right">
-  <li><a href="https://www.elastic.co/docs/solutions/observability">Elastic Observability overview</a></li>
-  <li><a href="https://www.elastic.co/docs/solutions/observability/apm/opentelemetry">Elastic OpenTelemetry docs</a></li>
-  <li><a href="https://grafana.com/about/grafana-stack/">Grafana Stack overview</a></li>
-  <li><a href="https://grafana.com/docs/learning-hub/intro-to-data-sources/00-overview/03-telemetry-types/">Grafana telemetry type guide</a></li>
-  <li><a href="https://grafana.com/docs/loki/latest/logql/">Loki query docs</a></li>
-  <li><a href="https://grafana.com/docs/loki/latest/operations/meta-monitoring/">Loki meta-monitoring docs</a></li>
-  <li><a href="https://grafana.com/docs/tempo/latest/getting-started/metrics-from-traces/">Tempo metrics-from-traces docs</a></li>
-</ul>
+قول اصلی این مخزن همین است: مهندس باید بتواند از «چیزی مشکل دارد» به «این عملیات توضیح می‌دهد چرا» برسد.
+
+</div>

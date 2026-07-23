@@ -13,6 +13,31 @@ public sealed class PaymentRequestedConsumer(
 {
     public async Task Consume(ConsumeContext<PaymentRequested> context)
     {
+        if (context.Message.Scenario == DemoScenario.PaymentFailure)
+        {
+            const string reason = "Payment provider rejected the card.";
+            var failedPayment = state.MarkFailed(context.Message, reason);
+            var failureMetadata = correlationContext.CreateMetadata();
+            var failure = new PaymentFailed(
+                failedPayment.PaymentId,
+                failedPayment.BookingId,
+                failedPayment.Amount,
+                failedPayment.Currency,
+                reason,
+                DateTimeOffset.UtcNow,
+                failureMetadata.EventId,
+                failureMetadata.CorrelationId,
+                failureMetadata.CausationId);
+
+            await publishEndpoint.Publish(failure, context.CancellationToken);
+            logger.LogWarning(
+                "Payment {PaymentId} failed for booking {BookingId}: {Reason}",
+                failedPayment.PaymentId,
+                failedPayment.BookingId,
+                reason);
+            return;
+        }
+
         var transactionId = $"TX-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(1000, 9999)}";
         var payment = state.MarkCompleted(context.Message, transactionId);
 
@@ -29,6 +54,9 @@ public sealed class PaymentRequestedConsumer(
             metadata.CausationId);
 
         await publishEndpoint.Publish(message, context.CancellationToken);
-        logger.LogInformation("Payment {PaymentId} completed for booking {BookingId}", payment.PaymentId, payment.BookingId);
+        logger.LogInformation(
+            "Payment {PaymentId} completed for booking {BookingId}",
+            payment.PaymentId,
+            payment.BookingId);
     }
 }
