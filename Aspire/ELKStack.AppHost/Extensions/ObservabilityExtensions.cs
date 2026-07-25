@@ -2,7 +2,7 @@ namespace Aspire.Hosting;
 
 public static class ObservabilityExtensions
 {
-    private const string ElasticVersion = "8.17.3";
+    private const string ElasticVersion = "9.4.2";
 
     private const string OtelCollectorConfig = """
         receivers:
@@ -48,10 +48,17 @@ public static class ObservabilityExtensions
 
     public static ObservabilityResources AddElasticApmStack(this IDistributedApplicationBuilder builder)
     {
-        var elasticsearch = builder.AddElasticsearch("elasticsearch")
+        // Use explicit containers because Aspire.Hosting.Elasticsearch currently
+        // does not expose the Elastic 9.4 image we want to run locally.
+        var elasticsearch = builder.AddContainer(
+                "elasticsearch",
+                "elasticsearch",
+                ElasticVersion)
             .WithEnvironment("xpack.security.enabled", "false")
             .WithEnvironment("discovery.type", "single-node")
-            .WithDataVolume()
+            .WithEnvironment("ES_JAVA_OPTS", "-Xms512m -Xmx512m")
+            .WithVolume("elkstack-elasticsearch-9-data", "/usr/share/elasticsearch/data")
+            .WithHttpEndpoint(targetPort: 9200, name: "http")
             .WithLifetime(ContainerLifetime.Persistent);
 
         var apmServer = builder.AddContainer("apm-server", "elastic/apm-server", ElasticVersion)
@@ -62,8 +69,9 @@ public static class ObservabilityExtensions
             .WithLifetime(ContainerLifetime.Persistent)
             .WaitFor(elasticsearch);
 
-        var kibana = builder.AddContainer("kibana", "elastic/kibana", ElasticVersion)
+        var kibana = builder.AddContainer("kibana", "kibana", ElasticVersion)
             .WithEnvironment("ELASTICSEARCH_HOSTS", elasticsearch.GetEndpoint("http"))
+            .WithEnvironment("XPACK_SECURITY_ENABLED", "false")
             .WithHttpEndpoint(targetPort: 5601, name: "http")
             .WithLifetime(ContainerLifetime.Persistent)
             .WaitFor(elasticsearch);
@@ -91,12 +99,12 @@ public static class ObservabilityExtensions
 }
 
 public sealed class ObservabilityResources(
-    IResourceBuilder<ElasticsearchResource> elasticsearch,
+    IResourceBuilder<ContainerResource> elasticsearch,
     IResourceBuilder<ContainerResource> apmServer,
     IResourceBuilder<ContainerResource> kibana,
     IResourceBuilder<OpenTelemetryCollectorResource> otelCollector)
 {
-    public IResourceBuilder<ElasticsearchResource> Elasticsearch { get; } = elasticsearch;
+    public IResourceBuilder<ContainerResource> Elasticsearch { get; } = elasticsearch;
     public IResourceBuilder<ContainerResource> ApmServer { get; } = apmServer;
     public IResourceBuilder<ContainerResource> Kibana { get; } = kibana;
     public IResourceBuilder<OpenTelemetryCollectorResource> OtelCollector { get; } = otelCollector;

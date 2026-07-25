@@ -5,6 +5,7 @@ using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddAuthorization();
 builder.AddServiceDefaults();
 builder.AddElkStackObservability();
 builder.Services.AddSingleton<NotificationState>();
