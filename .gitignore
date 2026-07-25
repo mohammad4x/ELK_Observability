@@ -5,3 +5,5 @@ obj/
 *.user
 *.suo
 TestResults/
+node_modules/
+.next/

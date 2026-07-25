@@ -23,8 +23,17 @@ var notificationService = builder.AddProject<Projects.ELKStack_NotificationServi
     .WaitFor(messaging)
     .WithExternalHttpEndpoints();
 
+var flightBookingWeb = builder.AddJavaScriptApp("elkstack-flight-booking-web", "../../src/ELKStack.FlightBooking.Web", "dev")
+    .WithReference(bookingService)
+    .WithEnvironment("BOOKING_SERVICE_URL", bookingService.GetEndpoint("http"))
+    .WithHttpEndpoint(env: "PORT")
+    .WaitFor(bookingService)
+    .WithExternalHttpEndpoints()
+    .WithOpenTelemetryCollectorRouting(observability.OtelCollector);
+
 bookingService.WaitFor(observability.OtelCollector);
 paymentService.WaitFor(observability.OtelCollector);
 notificationService.WaitFor(observability.OtelCollector);
+flightBookingWeb.WaitFor(observability.OtelCollector);
 
 builder.Build().Run();
