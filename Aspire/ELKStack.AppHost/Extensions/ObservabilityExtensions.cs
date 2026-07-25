@@ -64,7 +64,7 @@ public static class ObservabilityExtensions
         var apmServer = builder.AddContainer("apm-server", "elastic/apm-server", ElasticVersion)
             .WithEnvironment("ELASTIC_APM_SECRET_TOKEN", "")
             .WithEnvironment("output.elasticsearch.hosts", elasticsearch.GetEndpoint("http"))
-            .WithArgs("--strict.perms=false")
+            .WithArgs("--strict.perms=false", "-E", "apm-server.rum.enabled=true")
             .WithHttpEndpoint(targetPort: 8200, name: "http")
             .WithLifetime(ContainerLifetime.Persistent)
             .WaitFor(elasticsearch);
